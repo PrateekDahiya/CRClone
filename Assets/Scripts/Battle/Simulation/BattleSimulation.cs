@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using CRClone.Core;
+using FixedMath = CRClone.Core.Math;
 using CRClone.Data;
+using CRClone.Network;
 
 namespace CRClone.Battle.Simulation
 {
@@ -13,27 +15,27 @@ namespace CRClone.Battle.Simulation
         public const int MAX_ENTITIES = 500;
 
         // Game state
-        private GameConfig _config;
-        private ulong _seed;
-        private DeterministicRNG _rng;
+        internal GameConfig _config;
+        internal ulong _seed;
+        internal FixedMath.DeterministicRNG _rng;
         private uint _currentTick = 0;
         private uint _serverTick = 0;
         private BattleStatus _status = BattleStatus.Waiting;
 
         // Players
-        private PlayerState _player1;
-        private PlayerState _player2;
+        internal PlayerState _player1;
+        internal PlayerState _player2;
 
         // Entities
-        private readonly Dictionary<uint, Entity> _entities = new();
-        private readonly List<Unit> _units = new();
-        private readonly List<Building> _buildings = new();
-        private readonly List<Projectile> _projectiles = new();
-        private readonly List<SpellEffect> _activeSpells = new();
-        private readonly List<Tower> _towers = new();
+        internal readonly Dictionary<uint, Entity> _entities = new();
+        internal readonly List<Unit> _units = new();
+        internal readonly List<Building> _buildings = new();
+        internal readonly List<Projectile> _projectiles = new();
+        internal readonly List<SpellEffect> _activeSpells = new();
+        internal readonly List<Tower> _towers = new();
 
         // Entity ID allocation
-        private uint _nextEntityId = 1000; // Start after tower IDs
+        internal uint _nextEntityId = 1000; // Start after tower IDs
 
         // Input queues
         private readonly Queue<NetworkClient.PlayerInput> _p1Inputs = new();
@@ -41,9 +43,13 @@ namespace CRClone.Battle.Simulation
 
         // Events for replay
         private readonly List<BattleEvent> _eventLog = new();
+        private readonly List<ReplayEvent> _replayLog = new();
 
         // Pathfinding
-        private Pathfinding _pathfinding;
+        internal Pathfinding _pathfinding;
+
+        // Collision grid dirty flag
+        private bool _collisionGridDirty = true;
 
         public BattleStatus Status => _status;
         public uint CurrentTick => _currentTick;
@@ -56,12 +62,19 @@ namespace CRClone.Battle.Simulation
         public IReadOnlyList<Tower> Towers => _towers;
         public IReadOnlyList<BattleEvent> EventLog => _eventLog;
 
+        public uint AllocateEntityId() { return _nextEntityId++; }
+        public void RegisterUnit(Unit unit) { _units.Add(unit); _entities[unit.Id] = unit; }
+        public void RegisterBuilding(Building building) { _buildings.Add(building); _entities[building.Id] = building; _collisionGridDirty = true; }
+        public double NextRandomDouble() { return _rng.NextDouble(); }
+        internal void LogBattleEvent(BattleEvent evt) { _eventLog.Add(evt); }
+
         public void Initialize(GameConfig config, ulong seed, int[] p1Deck, int[] p2Deck)
         {
             _config = config;
             _seed = seed;
-            _rng = new DeterministicRNG(seed);
+            _rng = new FixedMath.DeterministicRNG(seed);
             _currentTick = 0;
+            _serverTick = 0;
             _status = BattleStatus.Playing;
 
             // Initialize players
@@ -70,6 +83,7 @@ namespace CRClone.Battle.Simulation
 
             // Initialize pathfinding
             _pathfinding = new Pathfinding();
+            _pathfinding.Initialize();
 
             // Create towers
             CreateTowers();
@@ -79,6 +93,7 @@ namespace CRClone.Battle.Simulation
             _player2.Elixir = _config.startingElixir;
 
             LogEvent(new BattleEvent { tick = 0, type = EventType.BattleStart });
+            LogReplayEvent(new ReplayEvent { tick = 0, type = ReplayEventType.BattleStart });
         }
 
         private void CreateTowers()
@@ -123,19 +138,26 @@ namespace CRClone.Battle.Simulation
             // 6. Update buildings
             UpdateBuildings(dt);
 
-            // 7. Update towers
+            // 7. Update pathfinding collision grid (when buildings change)
+            if (_collisionGridDirty)
+            {
+                _pathfinding.UpdateBuildingCollision(_buildings);
+                _collisionGridDirty = false;
+            }
+
+            // 8. Update towers
             UpdateTowers(dt);
 
-            // 8. Collision resolution
+            // 9. Collision resolution
             ResolveCollisions();
 
-            // 9. Process deaths
+            // 10. Process deaths
             ProcessDeaths();
 
-            // 10. Check win conditions
+            // 11. Check win conditions
             CheckWinCondition();
 
-            // 11. Record events for replay
+            // 12. Record events for replay
             RecordTickEvents();
         }
 
@@ -195,7 +217,23 @@ namespace CRClone.Battle.Simulation
             if (!IsValidDeployPosition(player.PlayerId, position, cardData)) return;
 
             // Deduct elixir
+            int prevElixir = player.Elixir;
             player.Elixir -= cost;
+
+            // Emit ElixirChanged event for card play
+            EventBus.Raise(new EventBus.ElixirChangedEvent
+            {
+                playerId = player.PlayerId,
+                currentElixir = player.Elixir,
+                previousElixir = prevElixir,
+                reason = EventBus.ElixirChangeReason.CardPlayed
+            });
+
+            // Track last non-Mirror card for Mirror spell
+            if (cardData.type != CardType.Spell || cardData.cardName != "Mirror")
+            {
+                player.LastPlayedCardId = cardId;
+            }
 
             // Spawn entity based on card type
             switch (cardData.type)
@@ -223,12 +261,45 @@ namespace CRClone.Battle.Simulation
                 cardId = cardId,
                 position = position
             });
+
+            LogReplayEvent(new ReplayEvent
+            {
+                tick = _currentTick,
+                type = ReplayEventType.CardPlayed,
+                playerId = player.PlayerId,
+                cardId = cardId,
+                position = new FixedMath.FixedVector2(position),
+                elixir = player.Elixir
+            });
+
+            // Emit EventBus event
+            EventBus.Raise(new EventBus.CardPlayedEvent
+            {
+                playerId = player.PlayerId,
+                cardId = cardId,
+                position = position,
+                elixirCost = cost,
+                tick = _currentTick
+            });
         }
 
         private bool IsValidDeployPosition(int playerId, Vector2 position, CardData card)
         {
-            float deployZoneMaxY = playerId == 1 ? GameConstants.DEPLOY_ZONE_Y_P1_MAX : GameConstants.DEPLOY_ZONE_Y_P2_MIN;
-            float riverBoundary = playerId == 1 ? GameConstants.RIVER_Y_MAX : GameConstants.RIVER_Y_MIN;
+            // Check deploy zone expansion when princess tower destroyed
+            bool princessLeftDead = false, princessRightDead = false;
+            foreach (var tower in _towers)
+            {
+                if (tower.OwnerPlayerId == playerId)
+                {
+                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) princessLeftDead = true;
+                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) princessRightDead = true;
+                }
+            }
+            bool expandedDeploy = princessLeftDead || princessRightDead;
+
+            float deployZoneMaxY = playerId == 1 
+                ? (expandedDeploy ? GameConstants.DEPLOY_ZONE_Y_P1_MAX - 4f : GameConstants.DEPLOY_ZONE_Y_P1_MAX)
+                : (expandedDeploy ? GameConstants.DEPLOY_ZONE_Y_P2_MIN + 4f : GameConstants.DEPLOY_ZONE_Y_P2_MIN);
 
             // Check if in deploy zone
             if (playerId == 1 && position.y > deployZoneMaxY) return false;
@@ -237,25 +308,35 @@ namespace CRClone.Battle.Simulation
             // Spells can be placed anywhere
             if (card.type == CardType.Spell) return true;
 
-            // Buildings must be on own side
+            // Buildings must be on own side of river
             if (card.type == CardType.Building)
             {
                 if (playerId == 1 && position.y > GameConstants.RIVER_Y_MIN) return false;
                 if (playerId == 2 && position.y < GameConstants.RIVER_Y_MAX) return false;
             }
 
-            // Check river crossing for ground units
+            // Ground units cannot be placed across river
             if (card.type == CardType.Troop || card.type == CardType.Champion)
             {
-                var stats = card.GetStats(1);
-                // Flying units can cross river
-                // Ground units cannot be placed across river
+                // Flying units can be placed anywhere in deploy zone
+                bool isFlying = card.mechanicsJson?.Contains("flying") == true ||
+                                card.cardName.Contains("Minion") || card.cardName.Contains("Bat") ||
+                                card.cardName.Contains("Dragon") || card.cardName.Contains("Balloon") ||
+                                card.cardName.Contains("Phoenix") || card.cardName.Contains("Lava Hound") ||
+                                card.cardName.Contains("Skeleton Dragon") || card.cardName.Contains("Mega Minion");
+                
+                if (!isFlying)
+                {
+                    // Ground units must be on own side
+                    if (playerId == 1 && position.y > GameConstants.RIVER_Y_MIN) return false;
+                    if (playerId == 2 && position.y < GameConstants.RIVER_Y_MAX) return false;
+                }
             }
 
             return true;
         }
 
-        private void SpawnUnit(CardData card, int playerId, Vector2 position, int level)
+        public void SpawnUnit(CardData card, int playerId, Vector2 position, int level)
         {
             var stats = card.GetStats(level);
             var unit = new Unit(_nextEntityId++, playerId, card, stats, position, level);
@@ -263,7 +344,7 @@ namespace CRClone.Battle.Simulation
             _entities[unit.Id] = unit;
 
             // Find initial target
-            unit.AcquireTarget(GetPotentialTargets(unit));
+            unit.AcquireTarget(GetPotentialTargets(unit), this);
 
             LogEvent(new BattleEvent
             {
@@ -273,14 +354,36 @@ namespace CRClone.Battle.Simulation
                 cardId = card.cardId,
                 position = position
             });
+
+            LogReplayEvent(new ReplayEvent
+            {
+                tick = _currentTick,
+                type = ReplayEventType.UnitSpawned,
+                playerId = playerId,
+                cardId = card.cardId,
+                entityId = unit.Id,
+                position = new FixedMath.FixedVector2(position),
+                hpRemaining = unit.CurrentHP
+            });
+
+            // Emit EventBus event
+            EventBus.Raise(new EventBus.UnitSpawnedEvent
+            {
+                entityId = unit.Id,
+                playerId = playerId,
+                cardId = card.cardId,
+                position = position,
+                level = level
+            });
         }
 
-        private void SpawnBuilding(CardData card, int playerId, Vector2 position, int level)
+        public void SpawnBuilding(CardData card, int playerId, Vector2 position, int level)
         {
             var stats = card.GetStats(level);
             var building = new Building(_nextEntityId++, playerId, card, stats, position, level);
             _buildings.Add(building);
             _entities[building.Id] = building;
+            _collisionGridDirty = true;
 
             LogEvent(new BattleEvent
             {
@@ -290,6 +393,27 @@ namespace CRClone.Battle.Simulation
                 cardId = card.cardId,
                 position = position
             });
+
+            LogReplayEvent(new ReplayEvent
+            {
+                tick = _currentTick,
+                type = ReplayEventType.BuildingPlaced,
+                playerId = playerId,
+                cardId = card.cardId,
+                entityId = building.Id,
+                position = new FixedMath.FixedVector2(position),
+                hpRemaining = building.CurrentHP
+            });
+
+            // Emit EventBus event
+            EventBus.Raise(new EventBus.BuildingPlacedEvent
+            {
+                entityId = building.Id,
+                playerId = playerId,
+                cardId = card.cardId,
+                position = position,
+                lifetime = building.MaxLifetime
+            });
         }
 
         private void CastSpell(PlayerState player, PlayerState opponent, int spellId, Vector2 position)
@@ -298,6 +422,58 @@ namespace CRClone.Battle.Simulation
             if (cardData == null || cardData.type != CardType.Spell) return;
 
             // Validate elixir (already done in ApplyInput)
+
+            // Handle Mirror spell - mirrors last played card at +1 level
+            if (cardData.cardName == "Mirror")
+            {
+                if (player.LastPlayedCardId <= 0) return;
+                
+                var lastCard = Services.Get<DataManager>().GetCard(player.LastPlayedCardId);
+                if (lastCard == null) return;
+                
+                // Mirror costs last card elixir + 1
+                int mirrorCost = lastCard.elixirCost + 1;
+                if (player.Elixir < mirrorCost) return;
+                
+                player.Elixir -= mirrorCost;
+                
+                // Play the mirrored card at +1 level
+                if (lastCard.type == CardType.Troop || lastCard.type == CardType.Champion)
+                {
+                    SpawnUnit(lastCard, player.PlayerId, position, Math.Min(lastCard.GetStats(1).level + 1, 14));
+                }
+                else if (lastCard.type == CardType.Building)
+                {
+                    SpawnBuilding(lastCard, player.PlayerId, position, Math.Min(lastCard.GetStats(1).level + 1, 14));
+                }
+                else if (lastCard.type == CardType.Spell)
+                {
+                    CastSpell(player, opponent, lastCard.cardId, position);
+                }
+                
+                player.DrawCard();
+                
+                LogEvent(new BattleEvent
+                {
+                    tick = _currentTick,
+                    type = EventType.CardPlayed,
+                    playerId = player.PlayerId,
+                    cardId = spellId,
+                    position = position
+                });
+                
+                LogReplayEvent(new ReplayEvent
+                {
+                    tick = _currentTick,
+                    type = ReplayEventType.CardPlayed,
+                    playerId = player.PlayerId,
+                    cardId = spellId,
+                    position = new FixedMath.FixedVector2(position),
+                    elixir = player.Elixir
+                });
+                
+                return;
+            }
 
             var spellEffect = SpellEffect.CreateFromCard(_nextEntityId++, player.PlayerId, cardData, position, 1);
             if (spellEffect != null)
@@ -313,6 +489,26 @@ namespace CRClone.Battle.Simulation
                     cardId = spellId,
                     position = position
                 });
+
+                LogReplayEvent(new ReplayEvent
+                {
+                    tick = _currentTick,
+                    type = ReplayEventType.SpellCast,
+                    playerId = player.PlayerId,
+                    cardId = spellId,
+                    entityId = spellEffect.Id,
+                    position = new FixedMath.FixedVector2(position)
+                });
+
+                // Emit EventBus event
+                EventBus.Raise(new EventBus.SpellCastEvent
+                {
+                    playerId = player.PlayerId,
+                    spellId = spellId,
+                    position = position,
+                    targetPosition = position,
+                    tick = _currentTick
+                });
             }
         }
 
@@ -323,9 +519,10 @@ namespace CRClone.Battle.Simulation
             {
                 if (unit.OwnerPlayerId == player.PlayerId && unit.CardData.rarity == CardRarity.Champion)
                 {
-                    if (unit.TryUseAbility(position))
+                    if (unit.TryUseAbility(position, this))
                     {
-                        player.Elixir -= 2; // Ability cost (varies by champion)
+                        int abilityCost = GetChampionAbilityCost(unit.CardData.cardId);
+                        player.Elixir -= abilityCost;
 
                         LogEvent(new BattleEvent
                         {
@@ -335,29 +532,77 @@ namespace CRClone.Battle.Simulation
                             cardId = unit.CardData.cardId,
                             position = position
                         });
+
+                        LogReplayEvent(new ReplayEvent
+                        {
+                            tick = _currentTick,
+                            type = ReplayEventType.ChampionAbility,
+                            playerId = player.PlayerId,
+                            cardId = unit.CardData.cardId,
+                            entityId = unit.Id,
+                            position = new FixedMath.FixedVector2(position),
+                            elixir = player.Elixir
+                        });
                     }
                     break;
                 }
             }
         }
 
+        private int GetChampionAbilityCost(int championCardId)
+        {
+            return championCardId switch
+            {
+                // Archer Queen, Skeleton King, Mighty Miner
+                27000000 => 3, // Archer Queen
+                27000001 => 2, // Skeleton King
+                27000002 => 2, // Mighty Miner
+                _ => 2
+            };
+        }
+
         private void UpdateElixir(float dt)
         {
-            float rate = GetElixirRate();
-            float elixirPerTick = FIXED_DT / rate;
+            FixedMath.Fixed rate = GetElixirRate();
+            FixedMath.Fixed elixirPerTick = FixedMath.Fixed.FromFloat(FIXED_DT) / rate;
 
-            _player1.Elixir = Math.Min(_config.maxElixir, _player1.Elixir + elixirPerTick);
-            _player2.Elixir = Math.Min(_config.maxElixir, _player2.Elixir + elixirPerTick);
+            int prevElixir1 = _player1.Elixir;
+            int prevElixir2 = _player2.Elixir;
+
+            _player1.Elixir = Math.Min(_config.maxElixir, (int)Math.Floor((FixedMath.Fixed.FromInt(_player1.Elixir) + elixirPerTick).ToFloat()));
+            _player2.Elixir = Math.Min(_config.maxElixir, (int)Math.Floor((FixedMath.Fixed.FromInt(_player2.Elixir) + elixirPerTick).ToFloat()));
+
+            // Emit ElixirChanged events
+            if (_player1.Elixir != prevElixir1)
+            {
+                EventBus.Raise(new EventBus.ElixirChangedEvent
+                {
+                    playerId = 1,
+                    currentElixir = _player1.Elixir,
+                    previousElixir = prevElixir1,
+                    reason = EventBus.ElixirChangeReason.Generation
+                });
+            }
+            if (_player2.Elixir != prevElixir2)
+            {
+                EventBus.Raise(new EventBus.ElixirChangedEvent
+                {
+                    playerId = 2,
+                    currentElixir = _player2.Elixir,
+                    previousElixir = prevElixir2,
+                    reason = EventBus.ElixirChangeReason.Generation
+                });
+            }
 
             // Elixir collector production handled in building update
         }
 
-        private float GetElixirRate()
+        private FixedMath.Fixed GetElixirRate()
         {
             float elapsed = _currentTick * FIXED_DT;
-            if (elapsed >= _config.battleDuration + _config.overtimeDuration) return _config.tripleElixirRate;
-            if (elapsed >= _config.battleDuration) return _config.doubleElixirRate;
-            return _config.elixirGenerationRate;
+            if (elapsed >= _config.battleDuration + _config.overtimeDuration) return FixedMath.Fixed.FromFloat(_config.tripleElixirRate);
+            if (elapsed >= _config.battleDuration) return FixedMath.Fixed.FromFloat(_config.doubleElixirRate);
+            return FixedMath.Fixed.FromFloat(_config.elixirGenerationRate);
         }
 
         private void UpdateSpells(float dt)
@@ -459,6 +704,26 @@ namespace CRClone.Battle.Simulation
                     unit.OnDeath(this);
                     _entities.Remove(unit.Id);
                     _units.RemoveAt(i);
+
+                    LogReplayEvent(new ReplayEvent
+                    {
+                        tick = _currentTick,
+                        type = ReplayEventType.UnitDied,
+                        playerId = unit.OwnerPlayerId,
+                        cardId = unit.CardData.cardId,
+                        entityId = unit.Id,
+                        position = new FixedMath.FixedVector2(unit.Position)
+                    });
+
+                    // Emit EventBus event
+                    EventBus.Raise(new EventBus.UnitDiedEvent
+                    {
+                        entityId = unit.Id,
+                        playerId = unit.OwnerPlayerId,
+                        cardId = unit.CardData.cardId,
+                        position = unit.Position,
+                        cause = EventBus.DeathCause.Damage
+                    });
                 }
             }
 
@@ -471,6 +736,26 @@ namespace CRClone.Battle.Simulation
                     building.OnDeath(this);
                     _entities.Remove(building.Id);
                     _buildings.RemoveAt(i);
+                    _collisionGridDirty = true;
+
+                    LogReplayEvent(new ReplayEvent
+                    {
+                        tick = _currentTick,
+                        type = ReplayEventType.BuildingDestroyed,
+                        playerId = building.OwnerPlayerId,
+                        cardId = building.CardData.cardId,
+                        entityId = building.Id,
+                        position = new FixedMath.FixedVector2(building.Position)
+                    });
+
+                    // Emit EventBus event
+                    EventBus.Raise(new EventBus.BuildingDestroyedEvent
+                    {
+                        entityId = building.Id,
+                        playerId = building.OwnerPlayerId,
+                        cardId = building.CardData.cardId,
+                        cause = EventBus.DeathCause.Damage
+                    });
                 }
             }
         }
@@ -479,50 +764,114 @@ namespace CRClone.Battle.Simulation
         {
             bool p1KingDead = false, p2KingDead = false;
             int p1Crowns = 0, p2Crowns = 0;
+            bool p1PrincessLeftDead = false, p1PrincessRightDead = false;
+            bool p2PrincessLeftDead = false, p2PrincessRightDead = false;
 
             foreach (var tower in _towers)
             {
                 if (tower.OwnerPlayerId == 1)
                 {
                     if (tower.Type == TowerType.King && tower.IsDead) p1KingDead = true;
-                    if (tower.Type != TowerType.King && tower.IsDead) p1Crowns++;
+                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) { p1PrincessLeftDead = true; p1Crowns++; }
+                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p1PrincessRightDead = true; p1Crowns++; }
                 }
                 else
                 {
                     if (tower.Type == TowerType.King && tower.IsDead) p2KingDead = true;
-                    if (tower.Type != TowerType.King && tower.IsDead) p2Crowns++;
+                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) { p2PrincessLeftDead = true; p2Crowns++; }
+                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p2PrincessRightDead = true; p2Crowns++; }
                 }
             }
 
+            bool isOvertime = _currentTick >= _config.battleDuration * TICK_RATE;
+            float battleEndTime = (_config.battleDuration + _config.overtimeDuration) * TICK_RATE;
+
+            BattleStatus newStatus = _status;
+
+            // King tower destroyed = instant 3-crown win
             if (p1KingDead || p2KingDead)
             {
-                _status = p1KingDead ? BattleStatus.Player2Won : BattleStatus.Player1Won;
+                newStatus = p1KingDead ? BattleStatus.Player2Won : BattleStatus.Player1Won;
                 p1Crowns = p1KingDead ? 0 : 3;
                 p2Crowns = p2KingDead ? 0 : 3;
             }
-            else if (p1Crowns > p2Crowns && p1Crowns >= 3)
+            else if (isOvertime)
             {
-                _status = BattleStatus.Player1Won;
+                // Overtime: sudden death - first tower destroyed wins
+                if (p1Crowns > 0 || p2Crowns > 0)
+                {
+                    newStatus = p1Crowns > p2Crowns ? BattleStatus.Player1Won : BattleStatus.Player2Won;
+                }
+                else if (_currentTick >= battleEndTime)
+                {
+                    // Overtime timeout = draw
+                    newStatus = BattleStatus.Draw;
+                }
             }
-            else if (p2Crowns > p1Crowns && p2Crowns >= 3)
+            else if (_currentTick >= battleEndTime)
             {
-                _status = BattleStatus.Player2Won;
+                // Normal time ended with no winner = draw (shouldn't happen but safe)
+                newStatus = BattleStatus.Draw;
             }
-            else if (_currentTick >= (_config.battleDuration + _config.overtimeDuration) * TICK_RATE)
+
+            if (newStatus != _status && newStatus != BattleStatus.Playing)
             {
-                _status = BattleStatus.Draw;
+                _status = newStatus;
+                
+                // Emit BattleEnded event
+                EventBus.Raise(new EventBus.BattleEndedEvent
+                {
+                    result = _status,
+                    player1Crowns = p1Crowns,
+                    player2Crowns = p2Crowns,
+                    player1TrophyChange = 0, // Calculated by server
+                    player2TrophyChange = 0,
+                    duration = _currentTick * FIXED_DT,
+                    wentOvertime = isOvertime,
+                    replayId = 0 // Will be set by server
+                });
+
+                LogReplayEvent(new ReplayEvent
+                {
+                    tick = _currentTick,
+                    type = ReplayEventType.BattleEnd,
+                    playerId = _status == BattleStatus.Player1Won ? 1 : 
+                             _status == BattleStatus.Player2Won ? 2 : 0
+                });
             }
         }
 
         private void RecordTickEvents()
         {
             // Record significant state changes for replay
+            // Elixir changes
+            LogReplayEvent(new ReplayEvent
+            {
+                tick = _currentTick,
+                type = ReplayEventType.ElixirChanged,
+                playerId = 1,
+                elixir = _player1.Elixir
+            });
+            LogReplayEvent(new ReplayEvent
+            {
+                tick = _currentTick,
+                type = ReplayEventType.ElixirChanged,
+                playerId = 2,
+                elixir = _player2.Elixir
+            });
         }
 
         private void LogEvent(BattleEvent evt)
         {
             _eventLog.Add(evt);
         }
+
+        private void LogReplayEvent(ReplayEvent evt)
+        {
+            _replayLog.Add(evt);
+        }
+
+        public IReadOnlyList<ReplayEvent> GetReplayLog() => _replayLog;
 
         public List<Entity> GetPotentialTargets(Entity attacker)
         {
@@ -553,6 +902,23 @@ namespace CRClone.Battle.Simulation
             return targets;
         }
 
+        public List<Entity> GetAllEntitiesInRadius(Vector2 center, float radius)
+        {
+            var entities = new List<Entity>();
+            float radiusSq = radius * radius;
+
+            foreach (var entity in _entities.Values)
+            {
+                if (entity.IsDead) continue;
+                if (Vector2.Distance(center, entity.Position) <= radius + entity.CollisionRadius)
+                {
+                    entities.Add(entity);
+                }
+            }
+
+            return entities;
+        }
+
         public Entity GetEntity(uint id)
         {
             _entities.TryGetValue(id, out var entity);
@@ -565,7 +931,7 @@ namespace CRClone.Battle.Simulation
             _entities[projectile.Id] = projectile;
         }
 
-        public void Reconcile(GameStateMessage serverState)
+        public void Reconcile(NetworkClient.GameStateMessage serverState)
         {
             _serverTick = serverState.tick;
             // TODO: Reconcile entity positions, HP, etc.
@@ -580,6 +946,7 @@ namespace CRClone.Battle.Simulation
             _activeSpells.Clear();
             _towers.Clear();
             _eventLog.Clear();
+            _replayLog.Clear();
         }
     }
 
@@ -592,6 +959,7 @@ namespace CRClone.Battle.Simulation
         public int[] Hand { get; private set; }
         public int NextCardIndex { get; private set; }
         public bool KingTowerActivated { get; set; }
+        public int LastPlayedCardId { get; set; } = -1; // For Mirror spell
 
         private readonly GameConfig _config;
 
@@ -653,22 +1021,36 @@ namespace CRClone.Battle.Simulation
         BattleEnd
     }
 
-    public class DeterministicRNG
+    // Replay events for deterministic replay system
+    public struct ReplayEvent
     {
-        private ulong _state;
-
-        public DeterministicRNG(ulong seed) => _state = seed;
-
-        public uint NextUInt()
-        {
-            _state ^= _state >> 12;
-            _state ^= _state << 25;
-            _state ^= _state >> 27;
-            return (uint)(_state * 0x2545F4914F6CDD1D);
-        }
-
-        public float NextFloat() => NextUInt() * (1f / 0xFFFFFFFF);
-        public int NextInt(int min, int max) => min + (int)(NextFloat() * (max - min));
-        public bool NextBool(float probability) => NextFloat() < probability;
+        public uint tick;
+        public ReplayEventType type;
+        public int playerId;
+        public int cardId;
+        public int entityId;
+        public FixedMath.FixedVector2 position;
+        public int damage;
+        public int hpRemaining;
+        public int elixir;
     }
-}
+
+    public enum ReplayEventType
+    {
+        BattleStart,
+        CardPlayed,
+        UnitSpawned,
+        UnitDied,
+        BuildingPlaced,
+        BuildingDestroyed,
+        SpellCast,
+        TowerDamaged,
+        TowerDestroyed,
+        KingActivated,
+        ChampionAbility,
+        BattleEnd,
+        ElixirChanged,
+        EntityStateSync
+    }
+
+    // Use FixedMath.DeterministicRNG from CRClone.Core.FixedMath

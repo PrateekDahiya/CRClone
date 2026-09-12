@@ -1,0 +1,388 @@
+syntax = "proto3";
+
+package crclone;
+
+option js_import_style = "commonjs";
+
+// ============================================
+// ENVELOPE (base NetworkMessage wire prefix)
+// Matches C# NetworkMessage: type=1, requestId=2, timestamp=3
+// Used only to peek the `type` field before full decode.
+// ============================================
+message NetworkMessageEnvelope {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+}
+
+// ============================================
+// AUTH MESSAGES
+// ============================================
+message AuthMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string token = 10;
+}
+
+message AuthResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  bool success = 10;
+  string player_id = 11;
+  string error = 12;
+}
+
+// ============================================
+// MATCHMAKING MESSAGES
+// ============================================
+message MatchmakingRequest {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string battle_type = 20;
+}
+
+message MatchmakingStartedMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string battle_type = 20;
+}
+
+message BattleFoundMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string battle_id = 30;
+  uint64 seed = 31;
+  PlayerBattleInfo player1 = 32;
+  PlayerBattleInfo player2 = 33;
+  bool is_2v2 = 34;
+}
+
+message BattleStartMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string battle_id = 100;
+  uint32 tick = 101;
+  PlayerState player1 = 102;
+  PlayerState player2 = 103;
+}
+
+// ============================================
+// INPUT MESSAGES
+// ============================================
+message PlayerInput {
+  string type = 1; // play_card, cast_spell, champion_ability, emote
+  uint32 card_id = 2;
+  uint32 spell_id = 3;
+  Vector2 position = 4;
+  Vector2 target_position = 5;
+  uint32 client_tick = 6;
+}
+
+message InputMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  uint32 tick = 40;
+  PlayerInput input = 41;
+}
+
+message InputAckMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  uint32 ack_tick = 42;
+}
+
+// ============================================
+// GAME STATE MESSAGES
+// ============================================
+message GameStateMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  uint32 tick = 50;
+  repeated EntityState entities = 51;
+  repeated EntityState projectiles = 52;
+  PlayerState player1_state = 53;
+  PlayerState player2_state = 54;
+  string status = 55;
+}
+
+message ReconcileMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  uint32 tick = 60;
+  repeated EntityState entities = 61;
+}
+
+// ============================================
+// BATTLE END MESSAGES
+// ============================================
+message BattleEndMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string battle_id = 70;
+  BattleResult result = 71;
+}
+
+message BattleResult {
+  string battle_id = 1;
+  string winner = 2; // player1, player2, draw
+  int32 player1_crowns = 3;
+  int32 player2_crowns = 4;
+  int32 player1_trophy_change = 5;
+  int32 player2_trophy_change = 6;
+  int32 duration = 7;
+  bool went_overtime = 8;
+  string replay_id = 9;
+}
+
+// ============================================
+// ERROR MESSAGES
+// ============================================
+message ErrorMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string message = 80;
+  string code = 81;
+}
+
+// ============================================
+// HEARTBEAT MESSAGES
+// ============================================
+message HeartbeatMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+}
+
+message PongMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+}
+
+// ============================================
+// DECK MESSAGES
+// ============================================
+message SaveDeckRequest {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  repeated uint32 card_ids = 90;
+}
+
+message DeckSavedMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  bool success = 90;
+}
+
+// ============================================
+// CLAN MESSAGES
+// ============================================
+message ClanMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 200;
+  bytes data = 201;
+}
+
+message ClanResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 200;
+  bool success = 201;
+  bytes data = 202;
+}
+
+// ============================================
+// SHOP MESSAGES
+// ============================================
+message ShopMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 300;
+  bytes data = 301;
+}
+
+message ShopResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 300;
+  bytes data = 301;
+}
+
+// ============================================
+// QUEST MESSAGES
+// ============================================
+message QuestMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 400;
+  bytes data = 401;
+}
+
+message QuestResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 400;
+  bytes data = 401;
+}
+
+// ============================================
+// SEASON MESSAGES
+// ============================================
+message SeasonMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 500;
+  bytes data = 501;
+}
+
+message SeasonResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 500;
+  bytes data = 501;
+}
+
+// ============================================
+// TOURNAMENT MESSAGES
+// ============================================
+message TournamentMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 600;
+  bytes data = 601;
+}
+
+message TournamentResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 600;
+  bytes data = 601;
+}
+
+// ============================================
+// REPLAY MESSAGES
+// ============================================
+message ReplayMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 700;
+  bytes data = 701;
+}
+
+message ReplayResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 700;
+  bytes data = 701;
+}
+
+// ============================================
+// PLAYER MESSAGES
+// ============================================
+message PlayerMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 800;
+  bytes data = 801;
+}
+
+message PlayerResponseMessage {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+  string action = 800;
+  bytes data = 801;
+}
+
+// ============================================
+// SHARED TYPES
+// ============================================
+message Vector2 {
+  float x = 1;
+  float y = 2;
+}
+
+message PlayerBattleInfo {
+  string player_id = 1;
+  string username = 2;
+  int32 trophies = 3;
+  repeated uint32 deck = 4;
+  int32 king_tower_level = 5;
+  int32 princess_tower_level = 6;
+}
+
+message PlayerState {
+  string player_id = 1;
+  int32 elixir = 2;
+  repeated uint32 hand = 3;
+  repeated uint32 deck = 4;
+  int32 next_card_index = 5;
+  bool king_tower_activated = 6;
+}
+
+message EntityState {
+  uint32 id = 1;
+  string type = 2; // unit, building, projectile, spell_effect, tower
+  uint32 owner = 3;
+  Vector2 position = 4;
+  Vector2 velocity = 5;
+  int32 hp = 6;
+  int32 max_hp = 7;
+  uint32 target_id = 8;
+  bool is_dead = 9;
+
+  // Unit specific
+  string state = 10;
+  float attack_cooldown = 11;
+
+  // Building specific
+  float lifetime = 12;
+  bool is_retracted = 13;
+  float spawn_timer = 14;
+
+  // Projectile specific
+  uint32 source_id = 15;
+  bool is_beam = 16;
+
+  // Spell specific
+  string spell_type = 17;
+  float radius = 18;
+  float remaining_time = 19;
+}
+
+message MatchmakingQueueEntry {
+  string player_id = 1;
+  string username = 2;
+  int32 trophies = 3;
+  repeated uint32 deck = 4;
+  string battle_type = 5;
+  int64 joined_at = 6;
+}

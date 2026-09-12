@@ -1,0 +1,21 @@
+{
+  "name": "CRClone.Tests",
+  "rootNamespace": "CRClone.Tests",
+  "references": [
+    "CRClone.Core"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [
+    "nunit.framework.dll",
+    "UnityEngine.TestRunner.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

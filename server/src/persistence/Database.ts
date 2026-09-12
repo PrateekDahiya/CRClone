@@ -6,7 +6,11 @@ export class Database {
   private pool: mysql.Pool | null = null;
 
   async connect(): Promise<void> {
-    this.pool = mysql.createPool(config.database);
+    const dbConfig: any = { ...config.database };
+    if (dbConfig.ssl === true) {
+      dbConfig.ssl = { rejectUnauthorized: false };
+    }
+    this.pool = mysql.createPool(dbConfig);
     
     // Test connection
     const conn = await this.pool.getConnection();
@@ -19,12 +23,12 @@ export class Database {
     return this.pool;
   }
 
-  async query(sql: string, params?: any[]): Promise<any[]> {
+  async query<T = any>(sql: string, params?: any[]): Promise<T[]> {
     const [rows] = await this.getPool().execute(sql, params);
-    return rows as any[];
+    return rows as T[];
   }
 
-  async execute(sql: string, params?: any[]): Promise<mysql.ResultSetHeader> {
+  async execute(sql: string, params?: any[]): Promise<any> {
     const [result] = await this.getPool().execute(sql, params);
     return result;
   }

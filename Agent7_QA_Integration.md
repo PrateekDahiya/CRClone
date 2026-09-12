@@ -30,14 +30,10 @@ cp .env.example .env
 │                    QA CYCLE (Repeat Until Clean)                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. PULL LATEST FROM ALL 6 AGENTS                               │
+│  1. PULL LATEST MASTER (all agent work already merged)         │
 │     git fetch origin                                            │
-│     git merge origin/feature/battle-simulation-core             │
-│     git merge origin/feature/networking-multiplayer             │
-│     git merge origin/feature/ui-ux-implementation               │
-│     git merge origin/feature/asset-pipeline-card-db             │
-│     git merge origin/feature/database-backend-services          │
-│     git merge origin/feature/testing-ci-cd                      │
+│     git pull origin master                                      │
+│     # Do NOT merge feature branches — everything is on master. │
 │                                                                 │
 │  2. BUILD & START FULL STACK                                    │
 │     docker-compose -f docker-compose.test.yml up -d             │
@@ -323,15 +319,10 @@ After fix, QA will re-run: `<specific test command>`
 ## 📋 QA COMMANDS (Your Daily Toolkit)
 
 ```bash
-# 1. Pull all latest
+# 1. Pull latest master (all agent work already merged — no feature merges needed)
 cd ../CRClone-agent7
 git fetch origin
-git merge origin/feature/battle-simulation-core
-git merge origin/feature/networking-multiplayer
-git merge origin/feature/ui-ux-implementation
-git merge origin/feature/asset-pipeline-card-db
-git merge origin/feature/database-backend-services
-git merge origin/feature/testing-ci-cd
+git pull origin master
 
 # 2. Start full stack
 docker-compose -f docker-compose.test.yml up -d

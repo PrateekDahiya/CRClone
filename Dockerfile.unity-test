@@ -1,0 +1,13 @@
+# Unity headless test runner (used by docker-compose.test.yml)
+# Base this on game-ci editor image matching CI Unity version.
+ARG UNITY_VERSION=2022.3.20f1
+FROM unityci/editor:ubuntu-${UNITY_VERSION}-base-1.0 AS test
+
+WORKDIR /project
+
+# Project is mounted at runtime; image just provides Unity + test deps.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xvfb curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+CMD ["/bin/bash", "-c", "xvfb-run --auto-servernum /opt/unity/Editor/Unity -batchmode -nographics -projectPath /project -runTests -testPlatform EditMode -testResults /project/test-results.xml -logFile - -quit"]
