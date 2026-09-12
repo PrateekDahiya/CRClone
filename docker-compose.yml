@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: crclone-mysql
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-crclone}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-AVNS_kEjqz8LrDwgI9cxH2Qx}
+      MYSQL_USER: ${DB_USERNAME:-avnadmin}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-AVNS_kEjqz8LrDwgI9cxH2Qx}
+    ports:
+      - "${DB_PORT:-17886}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crclone-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: crclone-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crclone-network
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: crclone-server
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      WS_PORT: 3001
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-crclone}
+      DB_USERNAME: ${DB_USERNAME:-avnadmin}
+      DB_PASSWORD: ${DB_PASSWORD:-AVNS_kEjqz8LrDwgI9cxH2Qx}
+      DB_SSL: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-crclone-dev-secret-change-in-production}
+      LOG_LEVEL: debug
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server/src:/app/src
+      - ./server/package.json:/app/package.json
+    networks:
+      - crclone-network
+    command: npm run dev
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  crclone-network:
+    driver: bridge
