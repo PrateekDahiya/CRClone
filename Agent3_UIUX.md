@@ -156,18 +156,37 @@ Assets/Scripts/Battle/UI/
 
 ---
 
-## 🌿 BRANCH & WORKFLOW
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents Simultaneously)
+
+**Each agent works in their own isolated worktree - no conflicts, no waiting.**
+
 ```bash
-git checkout -b feature/ui-ux-implementation
-# Work on screens incrementally
-git push origin feature/ui-ux-implementation
+# Run ONCE per agent (each agent runs their own setup):
+
+# Agent 3 - UI/UX
+git worktree add ../CRClone-agent3 feature/ui-ux-implementation
+cd ../CRClone-agent3
+cp .env.example .env   # Fill in your DB credentials
+# Start working...
 ```
 
-**Integration Points:**
+**Each worktree is a complete, independent copy of the repo** - you can build, run tests, and commit independently. No stepping on each other's toes.
+
+### Branch & Workflow (Per Worktree)
+```bash
+# Inside your worktree directory:
+git checkout -b feature/ui-ux-implementation  # Already set by worktree add
+# Work, commit frequently
+git push origin feature/ui-ux-implementation
+# Create PR when deliverables done
+```
+
+**Integration Points (Cross-Agent Sync via PRs):**
 - Week 1: Mock data - build all screens with fake data, no network needed
 - Week 2: Agent 2 provides `NetworkClient` → wire real matchmaking, battle actions
 - Week 3: Agent 1 events → HUD updates in real-time
 - Week 4: Agent 4 assets → replace placeholders with real art
+- Continuous: Agent 6 writes E2E tests for your screens
 
 ---
 

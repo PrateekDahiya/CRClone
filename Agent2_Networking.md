@@ -144,17 +144,36 @@ export interface GameState {
 
 ---
 
-## 🌿 BRANCH & WORKFLOW
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents Simultaneously)
+
+**Each agent works in their own isolated worktree - no conflicts, no waiting.**
+
 ```bash
-git checkout -b feature/networking-multiplayer
-# Client + Server in same branch
-git push origin feature/networking-multiplayer
+# Run ONCE per agent (each agent runs their own setup):
+
+# Agent 2 - Networking
+git worktree add ../CRClone-agent2 feature/networking-multiplayer
+cd ../CRClone-agent2
+cp .env.example .env   # Fill in your DB credentials
+# Start working...
 ```
 
-**Integration Points:**
+**Each worktree is a complete, independent copy of the repo** - you can build, run tests, and commit independently. No stepping on each other's toes.
+
+### Branch & Workflow (Per Worktree)
+```bash
+# Inside your worktree directory:
+git checkout -b feature/networking-multiplayer  # Already set by worktree add
+# Work, commit frequently
+git push origin feature/networking-multiplayer
+# Create PR when deliverables done
+```
+
+**Integration Points (Cross-Agent Sync via PRs):**
 - Week 1: Port Agent 1's `BattleSimulation` to server `BattleSimulation.ts` - verify identical results with same seed
 - Week 2: Unity `NetworkClient` ↔ Server `BattleServer` - full 1v1 flow
 - Week 3: Agent 3 integrates `NetworkClient` into Lobby/DeckBuilder/Battle screens
+- Continuous: Agent 6 writes tests for your code
 
 ---
 

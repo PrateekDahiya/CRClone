@@ -173,19 +173,37 @@ Assets/Spine/
 
 ---
 
-## 🌿 BRANCH & WORKFLOW
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents Simultaneously)
+
+**Each agent works in their own isolated worktree - no conflicts, no waiting.**
+
 ```bash
-git checkout -b feature/asset-pipeline-card-db
+# Run ONCE per agent (each agent runs their own setup):
+
+# Agent 4 - Assets
+git worktree add ../CRClone-agent4 feature/asset-pipeline-card-db
+cd ../CRClone-agent4
+cp .env.example .env   # Fill in your DB credentials
+# Start working...
+```
+
+**Each worktree is a complete, independent copy of the repo** - you can build, run tests, and commit independently. No stepping on each other's toes.
+
+### Branch & Workflow (Per Worktree)
+```bash
+# Inside your worktree directory:
+git checkout -b feature/asset-pipeline-card-db  # Already set by worktree add
 # Phase 1: Build tools (AtlasBuilder, PrefabGenerator, CardDatabaseBuilder)
 # Phase 2: Source assets -> process -> generate ScriptableObjects
 # Phase 3: Build prefabs -> test in BattleTestRunner
 git push origin feature/asset-pipeline-card-db
 ```
 
-**Integration Points:**
-- Week 1: Tools ready -> Agent 1 can test with real prefabs in `BattleTestRunner`
-- Week 2: CardDatabase complete -> Agent 3 DeckBuilder uses real data
-- Week 3: All prefabs ready -> Agent 3 replaces placeholders in Battle HUD
+**Integration Points (Cross-Agent Sync via PRs):**
+- Week 1: Tools ready → Agent 1 tests with real prefabs in `BattleTestRunner`
+- Week 2: CardDatabase complete → Agent 3 DeckBuilder uses real data
+- Week 3: All prefabs ready → Agent 3 replaces placeholders in Battle HUD
+- Continuous: Agent 6 writes asset validation tests
 
 ---
 

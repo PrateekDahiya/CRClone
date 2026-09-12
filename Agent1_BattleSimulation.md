@@ -109,18 +109,61 @@ Run `BattleTestRunner` in Unity Editor. All must pass:
 
 ---
 
-## 🌿 BRANCH & WORKFLOW
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents Simultaneously)
+
+**Each agent works in their own isolated worktree - no conflicts, no waiting.**
+
 ```bash
-git checkout -b feature/battle-simulation-core
-# Work, commit frequently
-git push origin feature/battle-simulation-core
-# Create PR when all deliverables done
+# Run ONCE per agent (each agent runs their own setup):
+
+# Agent 1 - Battle Simulation
+git worktree add ../CRClone-agent1 feature/battle-simulation-core
+cd ../CRClone-agent1
+cp .env.example .env   # Fill in your DB credentials
+# Start working...
+
+# Agent 2 - Networking
+git worktree add ../CRClone-agent2 feature/networking-multiplayer
+cd ../CRClone-agent2
+cp .env.example .env
+
+# Agent 3 - UI/UX
+git worktree add ../CRClone-agent3 feature/ui-ux-implementation
+cd ../CRClone-agent3
+cp .env.example .env
+
+# Agent 4 - Assets
+git worktree add ../CRClone-agent4 feature/asset-pipeline-card-db
+cd ../CRClone-agent4
+cp .env.example .env
+
+# Agent 5 - Backend
+git worktree add ../CRClone-agent5 feature/database-backend-services
+cd ../CRClone-agent5
+cp .env.example .env
+
+# Agent 6 - Testing
+git worktree add ../CRClone-agent6 feature/testing-ci-cd
+cd ../CRClone-agent6
+cp .env.example .env
 ```
 
-**Integration Points:**
-- Week 1: Agent 4 provides prefab templates → you test with real views
-- Week 2: Agent 2 ports your simulation to server → verify identical results
-- Week 3: Agent 3 binds HUD to your EventBus events
+**Each worktree is a complete, independent copy of the repo** - you can build, run tests, and commit independently. No stepping on each other's toes.
+
+### Branch & Workflow (Per Worktree)
+```bash
+# Inside your worktree directory:
+git checkout -b feature/battle-simulation-core  # Already set by worktree add
+# Work, commit frequently
+git push origin feature/battle-simulation-core
+# Create PR when deliverables done
+```
+
+**Integration Points (Cross-Agent Sync via PRs):**
+- Week 1: Agent 4 provides prefab templates → Agent 1 tests with real views
+- Week 2: Agent 2 ports Agent 1's simulation to server → verify identical results
+- Week 3: Agent 3 binds HUD to Agent 1's EventBus events
+- Continuous: Agent 6 writes tests for all agents' code
 
 ---
 

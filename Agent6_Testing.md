@@ -192,9 +192,26 @@ Assets/Scripts/AssemblyDefinition.asmdef
 
 ---
 
-## 🌿 BRANCH & WORKFLOW
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents Simultaneously)
+
+**Each agent works in their own isolated worktree - no conflicts, no waiting.**
+
 ```bash
-git checkout -b feature/testing-ci-cd
+# Run ONCE per agent (each agent runs their own setup):
+
+# Agent 6 - Testing
+git worktree add ../CRClone-agent6 feature/testing-ci-cd
+cd ../CRClone-agent6
+cp .env.example .env   # Fill in your DB credentials
+# Start working...
+```
+
+**Each worktree is a complete, independent copy of the repo** - you can build, run tests, and commit independently. No stepping on each other's toes.
+
+### Branch & Workflow (Per Worktree)
+```bash
+# Inside your worktree directory:
+git checkout -b feature/testing-ci-cd  # Already set by worktree add
 # Phase 1: Test scaffolding + CI pipelines
 # Phase 2: Unit tests as features land
 # Phase 3: Integration + E2E + Performance
@@ -202,11 +219,12 @@ git checkout -b feature/testing-ci-cd
 git push origin feature/testing-ci-cd
 ```
 
-**Integration Points:**
+**Integration Points (Cross-Agent Sync via PRs):**
 - Continuous: PR checks run on every push
 - Weekly: Performance benchmarks + security scan
 - On Merge: Full test suite + staging deploy
 - Release: Production deploy (manual approval)
+- Continuous: Writes tests for all 5 other agents' code
 
 ---
 

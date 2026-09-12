@@ -429,23 +429,93 @@ server/src/utils/
 
 ---
 
-## 📦 HOW TO RUN AGENTS
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents SIMULTANEOUSLY)
+
+**All 6 agents run in parallel - no waiting, no sequential dependency.**
 
 ```bash
-# Each agent works on their branch
-git checkout -b feature/battle-simulation-core      # Agent 1
-git checkout -b feature/networking-multiplayer      # Agent 2
-git checkout -b feature/ui-ux-implementation        # Agent 3
-git checkout -b feature/asset-pipeline-card-db      # Agent 4
-git checkout -b feature/database-backend-services   # Agent 5
-git checkout -b feature/testing-ci-cd               # Agent 6
+# Run ONCE in the main repo to create 6 isolated worktrees:
+git worktree add ../CRClone-agent1 feature/battle-simulation-core
+git worktree add ../CRClone-agent2 feature/networking-multiplayer
+git worktree add ../CRClone-agent3 feature/ui-ux-implementation
+git worktree add ../CRClone-agent4 feature/asset-pipeline-card-db
+git worktree add ../CRClone-agent5 feature/database-backend-services
+git worktree add ../CRClone-agent6 feature/testing-ci-cd
 
-# Daily sync: 15 min standup
-# PR reviews: Cross-agent for shared boundaries
-# Integration: Weekly merge to integration branch
+# Then EACH AGENT runs in their own directory:
+# Agent 1:
+cd ../CRClone-agent1 && cp .env.example .env
+
+# Agent 2:
+cd ../CRClone-agent2 && cp .env.example .env
+
+# Agent 3:
+cd ../CRClone-agent3 && cp .env.example .env
+
+# Agent 4:
+cd ../CRClone-agent4 && cp .env.example .env
+
+# Agent 5:
+cd ../CRClone-agent5 && cp .env.example .env
+
+# Agent 6:
+cd ../CRClone-agent6 && cp .env.example .env
 ```
 
-## 🔄 INTEGRATION POINTS (Weekly)
+**Each worktree is a complete, independent repo copy** - build, test, commit, push independently. Zero conflicts.
+
+### Per-Agent Branch (Auto-Set by Worktree)
+```bash
+# Inside each worktree, the branch is already set:
+# Agent 1: feature/battle-simulation-core
+# Agent 2: feature/networking-multiplayer
+# Agent 3: feature/ui-ux-implementation
+# Agent 4: feature/asset-pipeline-card-db
+# Agent 5: feature/database-backend-services
+# Agent 6: feature/testing-ci-cd
+
+# Work, commit, push:
+git push origin feature/battle-simulation-core  # etc.
+# Create PR when deliverables done
+```
+
+---
+
+## 📦 HOW TO RUN AGENTS (Parallel - Start All Now)
+
+```bash
+# In 6 separate terminals, each agent runs in their worktree:
+
+# Terminal 1 - Agent 1 (Battle Simulation)
+cd ../CRClone-agent1
+# Start Unity, open BattleTestRunner, begin implementing
+
+# Terminal 2 - Agent 2 (Networking)
+cd ../CRClone-agent2
+cd server && npm install && npm run dev
+
+# Terminal 3 - Agent 3 (UI/UX)
+cd ../CRClone-agent3
+# Start Unity, build screens with mock data
+
+# Terminal 4 - Agent 4 (Assets)
+cd ../CRClone-agent4
+# Start sourcing assets, building tools
+
+# Terminal 5 - Agent 5 (Backend)
+cd ../CRClone-agent5
+cd server && npm install && npm run migrate
+
+# Terminal 6 - Agent 6 (Testing)
+cd ../CRClone-agent6
+# Write test scaffolding, setup CI
+```
+
+**All 6 start TODAY - no sequential dependency.**
+
+---
+
+## 🔄 INTEGRATION POINTS (Weekly Sync via PRs)
 
 | Week | Integration Target |
 |------|-------------------|
@@ -455,6 +525,16 @@ git checkout -b feature/testing-ci-cd               # Agent 6
 | 4 | Agent 2 + Agent 3: Full 1v1 matchmaking → battle → result |
 | 5 | Agent 5 + All: Persistence, progression, clans |
 | 6 | Agent 6 + All: Full test suite passing, CI green |
+
+---
+
+## ⚠️ PARALLEL EXECUTION RULES
+
+1. **DO NOT WAIT** for another agent - work on mock data / non-blocked tasks
+2. **COMMUNICATE VIA PRs/ISSUES** - tag `@agent-name` in GitHub
+3. **MOCK FIRST** - Agent 3 uses fake cards until Agent 4 delivers; Agent 1 uses hardcoded cards until Agent 4 delivers ScriptableObjects
+4. **BLOCKED?** Create GitHub Issue with `blocked` label, tag relevant agent, pivot to next task
+5. **SYNC WEEKLY** - 15 min standup, review PRs, plan next week
 
 ---
 

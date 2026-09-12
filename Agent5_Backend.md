@@ -167,9 +167,26 @@ server/src/utils/
 
 ---
 
-## 🌿 BRANCH & WORKFLOW
+## 🌿 GIT WORKTREE SETUP (Run All 6 Agents Simultaneously)
+
+**Each agent works in their own isolated worktree - no conflicts, no waiting.**
+
 ```bash
-git checkout -b feature/database-backend-services
+# Run ONCE per agent (each agent runs their own setup):
+
+# Agent 5 - Backend
+git worktree add ../CRClone-agent5 feature/database-backend-services
+cd ../CRClone-agent5
+cp .env.example .env   # Fill in your DB credentials
+# Start working...
+```
+
+**Each worktree is a complete, independent copy of the repo** - you can build, run tests, and commit independently. No stepping on each other's toes.
+
+### Branch & Workflow (Per Worktree)
+```bash
+# Inside your worktree directory:
+git checkout -b feature/database-backend-services  # Already set by worktree add
 # Phase 1: Migrations 001-005 + MigrationRunner
 # Phase 2: PlayerService + ClanService (core progression)
 # Phase 3: Shop + Quest + Season + Tournament
@@ -177,11 +194,12 @@ git checkout -b feature/database-backend-services
 git push origin feature/database-backend-services
 ```
 
-**Integration Points:**
-- Week 1: Migrations + PlayerService -> Agent 2 uses for auth, matchmaking
-- Week 2: ClanService -> Agent 3 Clan screen
-- Week 3: Shop + Quest + Season -> Agent 3 Shop/Profile screens
-- Week 4: ReplayService -> Agent 2 BattleServer records replays
+**Integration Points (Cross-Agent Sync via PRs):**
+- Week 1: Migrations + PlayerService → Agent 2 uses for auth, matchmaking
+- Week 2: ClanService → Agent 3 Clan screen
+- Week 3: Shop + Quest + Season → Agent 3 Shop/Profile screens
+- Week 4: ReplayService → Agent 2 BattleServer records replays
+- Continuous: Agent 6 writes integration tests
 
 ---
 
