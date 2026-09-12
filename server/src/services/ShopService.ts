@@ -35,6 +35,10 @@ export interface PurchaseResult {
   error?: string;
 }
 
+// Minimal fetch shape so verification stays mockable in tests without new deps
+// (Node 18+ provides global fetch; resolved at call time via globalThis).
+type FetchFn = (input: any, init?: any) => Promise<{ ok: boolean; status: number; json: () => Promise<any> }>;
+
 export class ShopService {
   private db: Database;
   private shopRepo: ShopRepository;
@@ -136,7 +140,163 @@ export class ShopService {
   }
 
   private async verifyReceipt(platform: 'ios' | 'android', transactionId: string, receiptData: string, expectedPrice: number): Promise<boolean> {
-    logger.info('Verifying IAP receipt', { platform, transactionId, expectedPrice });
+    if (!transactionId || !receiptData) {
+      logger.warn('IAP verification failed: missing transactionId or receiptData', { platform });
+      return false;
+    }
+
+    try {
+      if (platform === 'ios') return await this.verifyAppleReceipt(transactionId, receiptData);
+      if (platform === 'android') return await this.verifyGooglePlayPurchase(transactionId, receiptData, expectedPrice);
+      logger.warn('IAP verification failed: unsupported platform', { platform, transactionId });
+      return false;
+    } catch (error) {
+      // Fail closed: any verification error (network, parse, store outage) denies the grant.
+      logger.warn('IAP verification error', { platform, transactionId, error: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }
+
+  /**
+   * Fail-closed stub fallback for environments without live store credentials.
+   * NEVER returns true in production. In non-production it only accepts
+   * explicitly-marked sandbox-test fixtures (see isSandboxTestReceipt), so
+   * forged receipts are rejected in every environment.
+   */
+  private stubVerifyReceipt(platform: string, transactionId: string, receiptData: string): boolean {
+    if (process.env.NODE_ENV === 'production') return false;
+    logger.warn('IAP verification stubbed — non-production only', { platform, transactionId });
+    return this.isSandboxTestReceipt(transactionId, receiptData);
+  }
+
+  /**
+   * Dev/test-only sandbox-test fixture check. Accepts receipts explicitly
+   * marked as test fixtures bound to the transaction id; everything else
+   * (including forged receipts) is rejected.
+   */
+  private isSandboxTestReceipt(transactionId: string, receiptData: string): boolean {
+    if (!transactionId || typeof receiptData !== 'string') return false;
+    if (receiptData === `SANDBOX_TEST_RECEIPT:${transactionId}`) return true;
+    try {
+      const parsed = JSON.parse(receiptData);
+      return !!parsed && parsed.__sandboxTest === true && parsed.transactionId === transactionId;
+    } catch {
+      return false;
+    }
+  }
+
+  private async verifyAppleReceipt(transactionId: string, receiptData: string): Promise<boolean> {
+    const sharedSecret = process.env.APPLE_IAP_SHARED_SECRET || '';
+    const fetchFn = (globalThis as any).fetch as FetchFn | undefined;
+
+    // Without the shared secret (or fetch) we cannot verify against Apple —
+    // fall back to the stub path, which is fail-closed in production.
+    if (!sharedSecret || typeof fetchFn !== 'function') {
+      return this.stubVerifyReceipt('ios', transactionId, receiptData);
+    }
+
+    const sandboxUrl = 'https://sandbox.itunes.apple.com/verifyReceipt';
+    const productionUrl = 'https://buy.itunes.apple.com/verifyReceipt';
+    const forceSandbox = process.env.APPLE_IAP_SANDBOX === 'true';
+    const primaryUrl = process.env.NODE_ENV === 'production' && !forceSandbox ? productionUrl : sandboxUrl;
+    const payload = JSON.stringify({ 'receipt-data': receiptData, password: sharedSecret });
+
+    let result: any = await this.postAppleVerifyReceipt(fetchFn, primaryUrl, payload);
+    // Apple's documented environment-mismatch codes: retry once on the other endpoint.
+    if (result && result.status === 21007 && primaryUrl !== sandboxUrl) {
+      logger.info('Apple sandbox receipt sent to production endpoint, retrying sandbox', { transactionId });
+      result = await this.postAppleVerifyReceipt(fetchFn, sandboxUrl, payload);
+    } else if (result && result.status === 21008 && primaryUrl !== productionUrl) {
+      result = await this.postAppleVerifyReceipt(fetchFn, productionUrl, payload);
+    }
+
+    if (!result || result.status !== 0) {
+      logger.warn('Apple receipt verification failed', { transactionId, status: result?.status });
+      return false;
+    }
+
+    const receiptInApps = result.receipt && Array.isArray(result.receipt.in_app) ? result.receipt.in_app : [];
+    const latestInfo = Array.isArray(result.latest_receipt_info) ? result.latest_receipt_info : [];
+    const matched = [...receiptInApps, ...latestInfo].some(
+      (entry: any) => entry && (entry.transaction_id === transactionId || entry.original_transaction_id === transactionId)
+    );
+    if (!matched) {
+      logger.warn('Apple receipt verification failed: transaction not found in receipt', { transactionId });
+      return false;
+    }
+
+    logger.info('Apple receipt verified', { transactionId });
+    return true;
+  }
+
+  private async postAppleVerifyReceipt(fetchFn: FetchFn, url: string, payload: string): Promise<any> {
+    const response = await fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload });
+    if (!response.ok) throw new Error(`Apple verifyReceipt HTTP ${response.status}`);
+    return response.json();
+  }
+
+  private async verifyGooglePlayPurchase(transactionId: string, receiptData: string, expectedPrice: number): Promise<boolean> {
+    const packageName = process.env.GOOGLE_PLAY_PACKAGE_NAME || process.env.ANDROID_PACKAGE_NAME || '';
+    const accessToken = process.env.GOOGLE_PLAY_ACCESS_TOKEN || '';
+    const fetchFn = (globalThis as any).fetch as FetchFn | undefined;
+
+    let productId = process.env.GOOGLE_PLAY_PRODUCT_ID || '';
+    let purchaseToken = '';
+    let claimedOrderId: string | null = null;
+    try {
+      const parsed = JSON.parse(receiptData);
+      if (parsed && typeof parsed === 'object') {
+        purchaseToken = parsed.purchaseToken || parsed.token || parsed.purchase_token || '';
+        productId = parsed.productId || parsed.product_id || productId;
+        claimedOrderId = parsed.orderId || parsed.order_id || null;
+      }
+    } catch {
+      purchaseToken = receiptData; // raw purchase token
+    }
+    if (!purchaseToken) purchaseToken = transactionId;
+
+    // Without package/token credentials we cannot validate against Google —
+    // fall back to the stub path, which is fail-closed in production.
+    if (!packageName || !accessToken || !productId || !purchaseToken || typeof fetchFn !== 'function') {
+      return this.stubVerifyReceipt('android', transactionId, receiptData);
+    }
+
+    const url =
+      `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}` +
+      `/purchases/products/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}` +
+      `?access_token=${encodeURIComponent(accessToken)}`;
+    const response = await fetchFn(url, { method: 'GET' });
+    if (!response.ok) throw new Error(`Google Play purchases.get HTTP ${response.status}`);
+    const purchase: any = await response.json();
+
+    // purchaseState: 0 = purchased, 1 = canceled, 2 = pending
+    if (purchase.purchaseState !== 0) {
+      logger.warn('Google Play purchase not completed', { transactionId, purchaseState: purchase.purchaseState });
+      return false;
+    }
+
+    const orderId: string | undefined = purchase.orderId || purchase.order_id;
+    const looksLikeOrderId = (id: string) => typeof id === 'string' && id.startsWith('GPA.');
+    if (claimedOrderId) {
+      if (!orderId || orderId !== claimedOrderId) {
+        logger.warn('Google Play orderId mismatch', { transactionId, orderId });
+        return false;
+      }
+    } else if (looksLikeOrderId(transactionId) && orderId !== transactionId) {
+      logger.warn('Google Play orderId mismatch', { transactionId, orderId });
+      return false;
+    }
+
+    const micros = purchase.priceAmountMicros ?? purchase.price_amount_micros;
+    if (micros !== undefined && micros !== null && Number.isFinite(expectedPrice) && expectedPrice > 0) {
+      const actualPrice = Number(micros) / 1e6;
+      if (Math.abs(actualPrice - expectedPrice) > 0.005) {
+        logger.warn('Google Play price mismatch', { transactionId, expectedPrice, actualPrice });
+        return false;
+      }
+    }
+
+    logger.info('Google Play purchase verified', { transactionId, orderId });
     return true;
   }
 
