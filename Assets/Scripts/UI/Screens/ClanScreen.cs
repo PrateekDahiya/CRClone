@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
-using CRClone.UI.Animation;
+using CRClone.Network;
 
 namespace CRClone.UI.Screens
 {
@@ -44,6 +44,13 @@ namespace CRClone.UI.Screens
         [SerializeField] private Text _warStatusText;
         [SerializeField] private Button _warParticipateButton;
 
+        [Header("Capital")]
+        [SerializeField] private Text _capitalStatusText;
+
+        [Header("Settings")]
+        [SerializeField] private Button _leaveClanButton;
+        [SerializeField] private InputField _clanDescriptionInput;
+
         private ClanTab _currentTab = ClanTab.Chat;
         private List<ClanMember> _members = new List<ClanMember>();
         private List<ChatMessage> _messages = new List<ChatMessage>();
@@ -57,51 +64,44 @@ namespace CRClone.UI.Screens
             Settings
         }
 
-        public void Initialize()
+        private void Awake()
+        {
+            InitializeComponents();
+        }
+
+        private void InitializeComponents()
         {
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
-            SetupTabs();
-            LoadClanData();
-            ShowTab(ClanTab.Chat);
-        }
-
-        private void SetupTabs()
-        {
-            _chatTab?.onClick.AddListener(() => ShowTab(ClanTab.Chat));
-            _membersTab?.onClick.AddListener(() => ShowTab(ClanTab.Members));
-            _warTab?.onClick.AddListener(() => ShowTab(ClanTab.War));
-            _capitalTab?.onClick.AddListener(() => ShowTab(ClanTab.Capital));
-            _settingsTab?.onClick.AddListener(() => ShowTab(ClanTab.Settings));
+            _chatTab?.onClick.AddListener(() => SwitchTab(ClanTab.Chat));
+            _membersTab?.onClick.AddListener(() => SwitchTab(ClanTab.Members));
+            _warTab?.onClick.AddListener(() => SwitchTab(ClanTab.War));
+            _capitalTab?.onClick.AddListener(() => SwitchTab(ClanTab.Capital));
+            _settingsTab?.onClick.AddListener(() => SwitchTab(ClanTab.Settings));
 
             _sendButton?.onClick.AddListener(OnSendMessage);
             _donateRequestButton?.onClick.AddListener(OnDonateRequest);
             _warParticipateButton?.onClick.AddListener(OnWarParticipate);
+            _leaveClanButton?.onClick.AddListener(OnLeaveClan);
+
+            LoadClanData();
         }
 
-        private void ShowTab(ClanTab tab)
+        private void OnEnable()
+        {
+            SwitchTab(ClanTab.Chat);
+            RefreshCurrentTab();
+        }
+
+        private void SwitchTab(ClanTab tab)
         {
             _currentTab = tab;
-
-            _chatContent?.gameObject.SetActive(tab == ClanTab.Chat);
-            _membersContent?.gameObject.SetActive(tab == ClanTab.Members);
-            _warContent?.gameObject.SetActive(tab == ClanTab.War);
-            _capitalContent?.gameObject.SetActive(tab == ClanTab.Capital);
-            _settingsContent?.gameObject.SetActive(tab == ClanTab.Settings);
-
-            UpdateTabButtons();
-
-            if (tab == ClanTab.Members)
-            {
-                RefreshMembersList();
-            }
-            else if (tab == ClanTab.Chat)
-            {
-                RefreshChatMessages();
-            }
+            UpdateTabVisuals();
+            ShowTabContent(tab);
+            RefreshCurrentTab();
         }
 
-        private void UpdateTabButtons()
+        private void UpdateTabVisuals()
         {
             SetTabSelected(_chatTab, _currentTab == ClanTab.Chat);
             SetTabSelected(_membersTab, _currentTab == ClanTab.Members);
@@ -118,42 +118,53 @@ namespace CRClone.UI.Screens
             button.colors = colors;
         }
 
+        private void ShowTabContent(ClanTab tab)
+        {
+            _chatContent?.gameObject.SetActive(tab == ClanTab.Chat);
+            _membersContent?.gameObject.SetActive(tab == ClanTab.Members);
+            _warContent?.gameObject.SetActive(tab == ClanTab.War);
+            _capitalContent?.gameObject.SetActive(tab == ClanTab.Capital);
+            _settingsContent?.gameObject.SetActive(tab == ClanTab.Settings);
+        }
+
+        private void RefreshCurrentTab()
+        {
+            switch (_currentTab)
+            {
+                case ClanTab.Chat:
+                    RefreshChat();
+                    break;
+                case ClanTab.Members:
+                    RefreshMembersList();
+                    break;
+                case ClanTab.War:
+                    RefreshWar();
+                    break;
+                case ClanTab.Capital:
+                    RefreshCapital();
+                    break;
+                case ClanTab.Settings:
+                    RefreshSettings();
+                    break;
+            }
+        }
+
         private void LoadClanData()
         {
             var playerData = Services.Get<GameManager>().LocalPlayer;
             if (playerData?.clan != null)
             {
                 var clan = playerData.clan;
-                if (_clanNameText != null) _clanNameText.text = clan.name;
-                if (_clanTrophyReqText != null) _clanTrophyReqText.text = $"Trophy Req: {clan.trophyRequirement:N0}";
-                if (_clanMembersText != null) _clanMembersText.text = $"Members: {clan.memberCount}/50";
+                _clanNameText.text = clan.name;
+                _clanTrophyReqText.text = $"Trophy Req: {clan.trophyRequirement:N0}";
+                _clanMembersText.text = $"Members: {clan.memberCount}/50";
 
                 _members = clan.members ?? new List<ClanMember>();
                 _messages = clan.messages ?? new List<ChatMessage>();
             }
         }
 
-        private void RefreshMembersList()
-        {
-            if (_membersListContainer == null || _memberItemPrefab == null) return;
-
-            foreach (Transform child in _membersListContainer)
-            {
-                Destroy(child.gameObject);
-            }
-
-            foreach (var member in _members)
-            {
-                var memberGO = Instantiate(_memberItemPrefab, _membersListContainer);
-                var memberUI = memberGO.GetComponent<PlayerListItemUI>();
-                if (memberUI != null)
-                {
-                    memberUI.Initialize(member, OnMemberAction);
-                }
-            }
-        }
-
-        private void RefreshChatMessages()
+        private void RefreshChat()
         {
             if (_chatMessagesContainer == null || _chatMessagePrefab == null) return;
 
@@ -175,9 +186,57 @@ namespace CRClone.UI.Screens
             ScrollToBottom();
         }
 
+        private void RefreshMembersList()
+        {
+            if (_membersListContainer == null || _memberItemPrefab == null) return;
+
+            foreach (Transform child in _membersListContainer)
+            {
+                Destroy(child.gameObject);
+            }
+
+            foreach (var member in _members)
+            {
+                var memberGO = Instantiate(_memberItemPrefab, _membersListContainer);
+                var memberUI = memberGO.GetComponent<ClanMemberItemUI>();
+                if (memberUI != null)
+                {
+                    memberUI.Initialize(member, OnMemberAction);
+                }
+            }
+        }
+
+        private void RefreshWar()
+        {
+            if (_warStatusText != null)
+            {
+                _warStatusText.text = "River Race: Season 1\nYour Clan: Rank 3\nNext battle in 2 hours";
+            }
+        }
+
+        private void RefreshCapital()
+        {
+            if (_capitalStatusText != null)
+            {
+                _capitalStatusText.text = "Clan Capital: Level 2\nDistricts: 3/5 unlocked\nNext raid: Friday 6 PM";
+            }
+        }
+
+        private void RefreshSettings()
+        {
+            if (_clanDescriptionInput != null)
+            {
+                var playerData = Services.Get<GameManager>().LocalPlayer;
+                if (playerData?.clan != null)
+                {
+                    _clanDescriptionInput.text = playerData.clan.description;
+                }
+            }
+        }
+
         private void ScrollToBottom()
         {
-            var scrollRect = _chatMessagesContainer.GetComponentInParent<ScrollRect>();
+            var scrollRect = _chatMessagesContainer?.GetComponentInParent<ScrollRect>();
             if (scrollRect != null)
             {
                 Canvas.ForceUpdateCanvases();
@@ -191,6 +250,26 @@ namespace CRClone.UI.Screens
 
             string message = _chatInput.text;
             _chatInput.text = "";
+
+            var chatMessage = new ChatMessage
+            {
+                senderId = Services.Get<GameManager>().LocalPlayer?.playerId ?? "",
+                senderName = Services.Get<GameManager>().LocalPlayer?.playerName ?? "You",
+                message = message,
+                timestamp = DateTime.Now,
+                type = ChatMessage.MessageType.Normal
+            };
+
+            _messages.Add(chatMessage);
+
+            var msgGO = Instantiate(_chatMessagePrefab, _chatMessagesContainer);
+            var msgUI = msgGO.GetComponent<ChatMessageUI>();
+            if (msgUI != null)
+            {
+                msgUI.Initialize(chatMessage, OnDonateClicked);
+            }
+
+            ScrollToBottom();
 
             Services.Get<NetworkClient>().Send(new NetworkClient.ClanChatMessage { message = message });
         }
@@ -207,7 +286,7 @@ namespace CRClone.UI.Screens
 
         private void OnDonateRequestConfirmed(int cardId, int count)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.DonationRequest { cardId = cardId, count = count });
+            Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonationRequest { cardId = cardId, count = count });
         }
 
         private void OnDonateClicked(int cardId, string requesterId)
@@ -215,13 +294,11 @@ namespace CRClone.UI.Screens
             var playerData = Services.Get<GameManager>().LocalPlayer;
             if (playerData?.collection.ContainsKey(cardId) == true)
             {
-                int ownedCount = playerData.collection[cardId];
                 int maxDonate = GetMaxDonation(cardId);
-
-                if (ownedCount >= maxDonate)
+                if (playerData.collection[cardId] >= maxDonate)
                 {
-                    Services.Get<NetworkClient>().Send(new NetworkClient.DonateCard { cardId = cardId, recipientId = requesterId, count = maxDonate });
-                    EventBus.RaiseToast("Card donated!");
+                    Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonate { cardId = cardId, recipientId = requesterId, count = maxDonate });
+                    EventBus.RaiseToast("Donated!");
                 }
                 else
                 {
@@ -246,31 +323,29 @@ namespace CRClone.UI.Screens
             };
         }
 
-        private void OnMemberAction(ClanMember member, MemberAction action)
-        {
-            switch (action)
-            {
-                case MemberAction.Promote:
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ClanMemberAction { targetId = member.playerId, action = "promote" });
-                    break;
-                case MemberAction.Demote:
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ClanMemberAction { targetId = member.playerId, action = "demote" });
-                    break;
-                case MemberAction.Kick:
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ClanMemberAction { targetId = member.playerId, action = "kick" });
-                    break;
-            }
-        }
-
         private void OnWarParticipate()
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.WarAction { action = "participate" });
+            Services.Get<NetworkClient>().Send(new NetworkClient.ClanWarAction { action = "participate" });
+        }
+
+        private void OnLeaveClan()
+        {
+            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/LeaveClanConfirmModal"));
+        }
+
+        private void OnMemberAction(ClanMember member, MemberAction action)
+        {
+            Services.Get<NetworkClient>().Send(new NetworkClient.ClanMemberAction 
+            { 
+                targetPlayerId = member.playerId, 
+                action = action.ToString().ToLower() 
+            });
         }
 
         public void OnMessageReceived(ChatMessage message)
         {
             _messages.Add(message);
-
+            
             if (_currentTab == ClanTab.Chat)
             {
                 var msgGO = Instantiate(_chatMessagePrefab, _chatMessagesContainer);
@@ -317,7 +392,6 @@ namespace CRClone.UI.Screens
     [Serializable]
     public class ChatMessage
     {
-        public string messageId;
         public string senderId;
         public string senderName;
         public string message;
@@ -326,15 +400,14 @@ namespace CRClone.UI.Screens
         public int? donationCardId;
         public int? donationCount;
         public string replayLink;
-    }
 
-    public enum MessageType
-    {
-        Normal,
-        System,
-        DonationRequest,
-        ReplayShare,
-        BattleResult
+        public enum MessageType
+        {
+            Normal,
+            System,
+            DonationRequest,
+            ReplayShare
+        }
     }
 
     public enum ClanRole

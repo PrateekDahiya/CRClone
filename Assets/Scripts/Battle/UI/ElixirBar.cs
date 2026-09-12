@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using CRClone.Core;
 using CRClone.UI.Animation;
 
 namespace CRClone.Battle.UI
@@ -31,11 +32,28 @@ namespace CRClone.Battle.UI
         private int _previousFullSegments = 0;
         private bool _isDoubleElixir = false;
         private bool _isTripleElixir = false;
+        private Coroutine _pulseCoroutine;
 
-        private void Start()
+        private void Awake()
         {
             _player = Services.Get<GameManager>().BattleSim?.Player1;
             InitializeSegments();
+            SubscribeToEvents();
+        }
+
+        private void OnDestroy()
+        {
+            UnsubscribeFromEvents();
+        }
+
+        private void SubscribeToEvents()
+        {
+            EventBus.OnElixirChanged += OnElixirChanged;
+        }
+
+        private void UnsubscribeFromEvents()
+        {
+            EventBus.OnElixirChanged -= OnElixirChanged;
         }
 
         private void InitializeSegments()
@@ -48,6 +66,13 @@ namespace CRClone.Battle.UI
                     _elixirSegments[i].color = _emptyColor;
                 }
             }
+        }
+
+        private void OnElixirChanged(EventBus.ElixirChangedEvent evt)
+        {
+            if (evt.playerId != 1) return; // Only local player
+
+            SetElixir(evt.currentElixir);
         }
 
         public void SetElixir(float elixir)
@@ -104,7 +129,7 @@ namespace CRClone.Battle.UI
             return _fullColor;
         }
 
-        private System.Collections.IEnumerator AnimateSegment(Image segment, float targetFill, Color targetColor)
+        private IEnumerator AnimateSegment(Image segment, float targetFill, Color targetColor)
         {
             float startFill = segment.fillAmount;
             Color startColor = segment.color;
@@ -135,7 +160,7 @@ namespace CRClone.Battle.UI
             }
         }
 
-        private System.Collections.IEnumerator PulseSegment(int index)
+        private IEnumerator PulseSegment(int index)
         {
             if (index < 0 || index >= 10 || _elixirSegments[index] == null) yield break;
 
@@ -144,6 +169,8 @@ namespace CRClone.Battle.UI
             Vector3 originalScale = rectTransform.localScale;
             Vector3 targetScale = originalScale * _pulseScale;
             Color originalColor = segment.color;
+
+            if (_pulseCoroutine != null) StopCoroutine(_pulseCoroutine);
 
             float elapsed = 0f;
             while (elapsed < _pulseDuration)
@@ -195,6 +222,14 @@ namespace CRClone.Battle.UI
         {
             _isTripleElixir = enabled;
             RefreshAllSegments();
+        }
+
+        public void PlayElixirGainPulse(int segmentIndex)
+        {
+            if (segmentIndex >= 0 && segmentIndex < 10)
+            {
+                StartCoroutine(PulseSegment(segmentIndex));
+            }
         }
     }
 }

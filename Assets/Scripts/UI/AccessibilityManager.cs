@@ -4,24 +4,46 @@ using UnityEngine.UI;
 
 namespace CRClone.UI
 {
+    public enum ColorBlindMode
+    {
+        None,
+        Protanopia,
+        Deuteranopia,
+        Tritanopia
+    }
+
     public class AccessibilityManager : MonoBehaviour
     {
         public static AccessibilityManager Instance { get; private set; }
 
-        [Header("Visual Settings")]
+        [Header("Settings")]
+        [SerializeField] private ColorBlindMode _colorBlindMode = ColorBlindMode.None;
         [SerializeField] private bool _highContrastMode = false;
         [SerializeField] private bool _reduceMotion = false;
         [SerializeField] private float _textScale = 1.0f;
-        [SerializeField] private ColorBlindMode _colorBlindMode = ColorBlindMode.None;
 
         [Header("Color Blind Palettes")]
-        [SerializeField] private ColorBlindPalette _protanopiaPalette;
-        [SerializeField] private ColorBlindPalette _deuteranopiaPalette;
-        [SerializeField] private ColorBlindPalette _tritanopiaPalette;
+        [SerializeField] private Color _protanopiaCommon = new Color(0.6f, 0.6f, 0.6f);
+        [SerializeField] private Color _protanopiaRare = new Color(0.0f, 0.6f, 0.9f);
+        [SerializeField] private Color _protanopiaEpic = new Color(0.7f, 0.3f, 0.7f);
+        [SerializeField] private Color _protanopiaLegendary = new Color(1.0f, 0.7f, 0.0f);
+        [SerializeField] private Color _protanopiaChampion = new Color(0.9f, 0.2f, 0.4f);
+
+        [SerializeField] private Color _deuteranopiaCommon = new Color(0.6f, 0.6f, 0.6f);
+        [SerializeField] private Color _deuteranopiaRare = new Color(0.0f, 0.7f, 0.8f);
+        [SerializeField] private Color _deuteranopiaEpic = new Color(0.6f, 0.2f, 0.6f);
+        [SerializeField] private Color _deuteranopiaLegendary = new Color(1.0f, 0.8f, 0.0f);
+        [SerializeField] private Color _deuteranopiaChampion = new Color(0.8f, 0.1f, 0.3f);
+
+        [SerializeField] private Color _tritanopiaCommon = new Color(0.6f, 0.6f, 0.6f);
+        [SerializeField] private Color _tritanopiaRare = new Color(0.2f, 0.5f, 0.9f);
+        [SerializeField] private Color _tritanopiaEpic = new Color(0.8f, 0.4f, 0.8f);
+        [SerializeField] private Color _tritanopiaLegendary = new Color(1.0f, 0.5f, 0.0f);
+        [SerializeField] private Color _tritanopiaChampion = new Color(0.9f, 0.3f, 0.5f);
 
         [Header("High Contrast Colors")]
+        [SerializeField] private Color _highContrastBg = Color.black;
         [SerializeField] private Color _highContrastText = Color.white;
-        [SerializeField] private Color _highContrastBackground = Color.black;
         [SerializeField] private Color _highContrastAccent = Color.yellow;
         [SerializeField] private Color _highContrastButtonNormal = new Color(0.2f, 0.2f, 0.2f);
         [SerializeField] private Color _highContrastButtonHighlight = new Color(0.4f, 0.4f, 0.4f);
@@ -34,15 +56,15 @@ namespace CRClone.UI
         [SerializeField] private Sprite _legendaryPattern;
         [SerializeField] private Sprite _championPattern;
 
+        public ColorBlindMode ColorBlindMode => _colorBlindMode;
         public bool HighContrastMode => _highContrastMode;
         public bool ReduceMotion => _reduceMotion;
         public float TextScale => _textScale;
-        public ColorBlindMode ColorBlindMode => _colorBlindMode;
 
+        public event Action<ColorBlindMode> OnColorBlindModeChanged;
         public event Action<bool> OnHighContrastChanged;
         public event Action<bool> OnReduceMotionChanged;
         public event Action<float> OnTextScaleChanged;
-        public event Action<ColorBlindMode> OnColorBlindModeChanged;
 
         private void Awake()
         {
@@ -56,6 +78,17 @@ namespace CRClone.UI
 
             LoadSettings();
             ApplySettings();
+        }
+
+        public void SetColorBlindMode(ColorBlindMode mode)
+        {
+            if (_colorBlindMode != mode)
+            {
+                _colorBlindMode = mode;
+                SaveSettings();
+                ApplyColorBlindMode();
+                OnColorBlindModeChanged?.Invoke(mode);
+            }
         }
 
         public void SetHighContrastMode(bool enabled)
@@ -81,7 +114,7 @@ namespace CRClone.UI
 
         public void SetTextScale(float scale)
         {
-            scale = Mathf.Clamp(scale, 1.0f, 2.0f);
+            scale = Mathf.Clamp(scale, 0.5f, 2.0f);
             if (Mathf.Abs(_textScale - scale) > 0.01f)
             {
                 _textScale = scale;
@@ -91,22 +124,38 @@ namespace CRClone.UI
             }
         }
 
-        public void SetColorBlindMode(ColorBlindMode mode)
+        private void LoadSettings()
         {
-            if (_colorBlindMode != mode)
-            {
-                _colorBlindMode = mode;
-                SaveSettings();
-                ApplyColorBlindMode();
-                OnColorBlindModeChanged?.Invoke(mode);
-            }
+            _colorBlindMode = (ColorBlindMode)PlayerPrefs.GetInt("accessibility_colorblind", 0);
+            _highContrastMode = PlayerPrefs.GetInt("accessibility_highcontrast", 0) == 1;
+            _reduceMotion = PlayerPrefs.GetInt("accessibility_reducemotion", 0) == 1;
+            _textScale = PlayerPrefs.GetFloat("accessibility_textscale", 1.0f);
+        }
+
+        private void SaveSettings()
+        {
+            PlayerPrefs.SetInt("accessibility_colorblind", (int)_colorBlindMode);
+            PlayerPrefs.SetInt("accessibility_highcontrast", _highContrastMode ? 1 : 0);
+            PlayerPrefs.SetInt("accessibility_reducemotion", _reduceMotion ? 1 : 0);
+            PlayerPrefs.SetFloat("accessibility_textscale", _textScale);
+            PlayerPrefs.Save();
         }
 
         private void ApplySettings()
         {
+            ApplyColorBlindMode();
             ApplyHighContrast();
             ApplyTextScale();
-            ApplyColorBlindMode();
+        }
+
+        private void ApplyColorBlindMode()
+        {
+            // Apply color blind palette to UI elements with RarityColorTag
+            var tags = FindObjectsOfType<RarityColorTag>();
+            foreach (var tag in tags)
+            {
+                tag.UpdateColor();
+            }
         }
 
         private void ApplyHighContrast()
@@ -117,37 +166,38 @@ namespace CRClone.UI
             }
             else
             {
-                RestoreOriginalColors();
+                // Reset to original colors - would need to store originals
+                RefreshAllUIColors();
             }
         }
 
         private void ApplyHighContrastToAllUI()
         {
-            var texts = FindObjectsOfType<Text>(true);
+            var texts = FindObjectsOfType<Text>();
             foreach (var text in texts)
             {
-                if (text.gameObject.GetComponent<AccessibilityIgnore>() == null)
+                if (text.GetComponent<IgnoreAccessibility>() == null)
                 {
                     text.color = _highContrastText;
                 }
             }
 
-            var images = FindObjectsOfType<Image>(true);
+            var images = FindObjectsOfType<Image>();
             foreach (var image in images)
             {
-                if (image.gameObject.GetComponent<AccessibilityIgnore>() == null && image.sprite == null)
+                if (image.GetComponent<IgnoreAccessibility>() == null && image.sprite == null)
                 {
                     if (image.color != Color.clear)
                     {
-                        image.color = _highContrastBackground;
+                        image.color = _highContrastBg;
                     }
                 }
             }
 
-            var buttons = FindObjectsOfType<Button>(true);
+            var buttons = FindObjectsOfType<Button>();
             foreach (var button in buttons)
             {
-                if (button.gameObject.GetComponent<AccessibilityIgnore>() == null)
+                if (button.GetComponent<IgnoreAccessibility>() == null)
                 {
                     var colors = button.colors;
                     colors.normalColor = _highContrastButtonNormal;
@@ -159,75 +209,81 @@ namespace CRClone.UI
             }
         }
 
-        private void RestoreOriginalColors()
+        private void RefreshAllUIColors()
         {
+            var tags = FindObjectsOfType<RarityColorTag>();
+            foreach (var tag in tags)
+            {
+                tag.UpdateColor();
+            }
         }
 
         private void ApplyTextScale()
         {
-            var texts = FindObjectsOfType<Text>(true);
-            foreach (var text in texts)
+            var scalers = FindObjectsOfType<TextScaleHandler>();
+            foreach (var scaler in scalers)
             {
-                if (text.gameObject.GetComponent<AccessibilityIgnore>() == null)
-                {
-                    var scaler = text.GetComponent<TextScaleHandler>();
-                    if (scaler == null) scaler = text.gameObject.AddComponent<TextScaleHandler>();
-                    scaler.BaseFontSize = text.fontSize;
-                    scaler.ApplyScale(_textScale);
-                }
-            }
-
-            var tmpTexts = FindObjectsOfType<TMPro.TextMeshProUGUI>(true);
-            foreach (var tmpText in tmpTexts)
-            {
-                if (tmpText.gameObject.GetComponent<AccessibilityIgnore>() == null)
-                {
-                    var scaler = tmpText.GetComponent<TextScaleHandler>();
-                    if (scaler == null) scaler = tmpText.gameObject.AddComponent<TextScaleHandler>();
-                    scaler.BaseFontSize = (int)tmpText.fontSize;
-                    scaler.ApplyScale(_textScale);
-                }
+                scaler.ApplyScale(_textScale);
             }
         }
 
-        private void ApplyColorBlindMode()
+        public Color GetRarityColor(CardRarity rarity)
         {
-            ColorBlindPalette palette = _colorBlindMode switch
+            if (_colorBlindMode != ColorBlindMode.None)
             {
-                ColorBlindMode.Protanopia => _protanopiaPalette,
-                ColorBlindMode.Deuteranopia => _deuteranopiaPalette,
-                ColorBlindMode.Tritanopia => _tritanopiaPalette,
-                _ => null
+                return GetColorBlindRarityColor(rarity);
+            }
+
+            return rarity switch
+            {
+                CardRarity.Common => new Color(0.62f, 0.62f, 0.62f),
+                CardRarity.Rare => new Color(0.13f, 0.59f, 0.95f),
+                CardRarity.Epic => new Color(0.61f, 0.15f, 0.69f),
+                CardRarity.Legendary => new Color(1f, 0.6f, 0f),
+                CardRarity.Champion => new Color(0.91f, 0.12f, 0.39f),
+                _ => Color.white
             };
-
-            if (palette != null)
-            {
-                ApplyPalette(palette);
-            }
-            else
-            {
-                RestoreOriginalColors();
-            }
         }
 
-        private void ApplyPalette(ColorBlindPalette palette)
+        private Color GetColorBlindRarityColor(CardRarity rarity)
         {
-            var images = FindObjectsOfType<Image>(true);
-            foreach (var image in images)
+            return _colorBlindMode switch
             {
-                if (image.gameObject.GetComponent<AccessibilityIgnore>() == null)
+                ColorBlindMode.Protanopia => rarity switch
                 {
-                    var rarityTag = image.GetComponent<RarityColorTag>();
-                    if (rarityTag != null)
-                    {
-                        image.color = palette.GetColorForRarity(rarityTag.Rarity);
-                    }
-                }
-            }
+                    CardRarity.Common => _protanopiaCommon,
+                    CardRarity.Rare => _protanopiaRare,
+                    CardRarity.Epic => _protanopiaEpic,
+                    CardRarity.Legendary => _protanopiaLegendary,
+                    CardRarity.Champion => _protanopiaChampion,
+                    _ => Color.white
+                },
+                ColorBlindMode.Deuteranopia => rarity switch
+                {
+                    CardRarity.Common => _deuteranopiaCommon,
+                    CardRarity.Rare => _deuteranopiaRare,
+                    CardRarity.Epic => _deuteranopiaEpic,
+                    CardRarity.Legendary => _deuteranopiaLegendary,
+                    CardRarity.Champion => _deuteranopiaChampion,
+                    _ => Color.white
+                },
+                ColorBlindMode.Tritanopia => rarity switch
+                {
+                    CardRarity.Common => _tritanopiaCommon,
+                    CardRarity.Rare => _tritanopiaRare,
+                    CardRarity.Epic => _tritanopiaEpic,
+                    CardRarity.Legendary => _tritanopiaLegendary,
+                    CardRarity.Champion => _tritanopiaChampion,
+                    _ => Color.white
+                },
+                _ => Color.white
+            };
         }
 
         public Sprite GetRarityPattern(CardRarity rarity)
         {
+            if (_colorBlindMode == ColorBlindMode.None) return null;
+
             return rarity switch
             {
                 CardRarity.Common => _commonPattern,
@@ -240,92 +296,89 @@ namespace CRClone.UI
         }
 
         public Color GetHighContrastTextColor() => _highContrastText;
-        public Color GetHighContrastBackgroundColor() => _highContrastBackground;
+        public Color GetHighContrastBgColor() => _highContrastBg;
         public Color GetHighContrastAccentColor() => _highContrastAccent;
-
-        private void LoadSettings()
-        {
-            _highContrastMode = PlayerPrefs.GetInt("accessibility_high_contrast", 0) == 1;
-            _reduceMotion = PlayerPrefs.GetInt("accessibility_reduce_motion", 0) == 1;
-            _textScale = PlayerPrefs.GetFloat("accessibility_text_scale", 1.0f);
-            _colorBlindMode = (ColorBlindMode)PlayerPrefs.GetInt("accessibility_color_blind", 0);
-        }
-
-        private void SaveSettings()
-        {
-            PlayerPrefs.SetInt("accessibility_high_contrast", _highContrastMode ? 1 : 0);
-            PlayerPrefs.SetInt("accessibility_reduce_motion", _reduceMotion ? 1 : 0);
-            PlayerPrefs.SetFloat("accessibility_text_scale", _textScale);
-            PlayerPrefs.SetInt("accessibility_color_blind", (int)_colorBlindMode);
-            PlayerPrefs.Save();
-        }
 
         public void ResetToDefaults()
         {
+            _colorBlindMode = ColorBlindMode.None;
             _highContrastMode = false;
             _reduceMotion = false;
             _textScale = 1.0f;
-            _colorBlindMode = ColorBlindMode.None;
             SaveSettings();
             ApplySettings();
         }
     }
 
-    public enum ColorBlindMode
+    public class RarityColorTag : MonoBehaviour
     {
-        None = 0,
-        Protanopia = 1,
-        Deuteranopia = 2,
-        Tritanopia = 3
-    }
+        [SerializeField] private CardRarity _rarity;
+        [SerializeField] private Image _targetImage;
+        [SerializeField] private bool _usePattern = true;
 
-    [Serializable]
-    public class ColorBlindPalette
-    {
-        public Color common = Color.gray;
-        public Color rare = Color.blue;
-        public Color epic = Color.magenta;
-        public Color legendary = Color.yellow;
-        public Color champion = new Color(1f, 0.2f, 0.6f);
-
-        public Color GetColorForRarity(CardRarity rarity)
-        {
-            return rarity switch
-            {
-                CardRarity.Common => common,
-                CardRarity.Rare => rare,
-                CardRarity.Epic => epic,
-                CardRarity.Legendary => legendary,
-                CardRarity.Champion => champion,
-                _ => Color.white
-            };
-        }
-    }
-
-    public class AccessibilityIgnore : MonoBehaviour { }
-
-    public class TextScaleHandler : MonoBehaviour
-    {
-        public int BaseFontSize { get; set; }
-        private Text _text;
-        private TMPro.TextMeshProUGUI _tmpText;
+        public CardRarity Rarity => _rarity;
 
         private void Awake()
         {
-            _text = GetComponent<Text>();
-            _tmpText = GetComponent<TMPro.TextMeshProUGUI>();
+            if (_targetImage == null) _targetImage = GetComponent<Image>();
+            UpdateColor();
+        }
+
+        public void UpdateColor()
+        {
+            if (_targetImage == null) return;
+
+            if (AccessibilityManager.Instance != null)
+            {
+                _targetImage.color = AccessibilityManager.Instance.GetRarityColor(_rarity);
+            }
+        }
+
+        public void SetRarity(CardRarity rarity)
+        {
+            _rarity = rarity;
+            UpdateColor();
+        }
+    }
+
+    public class TextScaleHandler : MonoBehaviour
+    {
+        [SerializeField] private Text _text;
+        [SerializeField] private float _baseFontSize = 16f;
+
+        private void Awake()
+        {
+            if (_text == null) _text = GetComponent<Text>();
+            _baseFontSize = _text.fontSize;
+
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.OnTextScaleChanged += OnTextScaleChanged;
+                ApplyScale(AccessibilityManager.Instance.TextScale);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.OnTextScaleChanged -= OnTextScaleChanged;
+            }
+        }
+
+        private void OnTextScaleChanged(float scale)
+        {
+            ApplyScale(scale);
         }
 
         public void ApplyScale(float scale)
         {
-            int newSize = Mathf.RoundToInt(BaseFontSize * scale);
-            if (_text != null) _text.fontSize = newSize;
-            if (_tmpText != null) _tmpText.fontSize = newSize;
+            if (_text != null)
+            {
+                _text.fontSize = Mathf.RoundToInt(_baseFontSize * scale);
+            }
         }
     }
 
-    public class RarityColorTag : MonoBehaviour
-    {
-        public CardRarity Rarity;
-    }
+    public class IgnoreAccessibility : MonoBehaviour { }
 }

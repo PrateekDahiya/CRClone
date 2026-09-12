@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,29 +15,23 @@ namespace CRClone.UI.Screens
         [SerializeField] private GameObject _defeatBanner;
         [SerializeField] private GameObject _drawBanner;
         [SerializeField] private Text _resultTitleText;
-        [SerializeField] private AnimationCurve _bannerCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
-        [SerializeField] private float _bannerDuration = 1f;
 
-        [Header("Crown Display")]
-        [SerializeField] private Transform _p1CrownsContainer;
-        [SerializeField] private Transform _p2CrownsContainer;
-        [SerializeField] private GameObject _crownPrefab;
+        [Header("Crowns")]
+        [SerializeField] private Image[] _player1Crowns = new Image[3];
+        [SerializeField] private Image[] _player2Crowns = new Image[3];
         [SerializeField] private Sprite _crownFilled;
         [SerializeField] private Sprite _crownEmpty;
         [SerializeField] private Sprite _kingCrown;
 
         [Header("Player Info")]
-        [SerializeField] private Text _p1NameText;
-        [SerializeField] private Text _p2NameText;
-        [SerializeField] private Text _p1TrophyChangeText;
-        [SerializeField] private Text _p2TrophyChangeText;
+        [SerializeField] private Text _player1NameText;
+        [SerializeField] private Text _player2NameText;
+        [SerializeField] private Text _player1TrophyChangeText;
+        [SerializeField] private Text _player2TrophyChangeText;
 
         [Header("Rewards")]
         [SerializeField] private Transform _rewardsContainer;
         [SerializeField] private GameObject _rewardItemPrefab;
-        [SerializeField] private Text _chestRewardText;
-        [SerializeField] private Text _goldRewardText;
-        [SerializeField] private Text _xpRewardText;
 
         [Header("Battle Log")]
         [SerializeField] private Transform _battleLogContainer;
@@ -49,17 +44,20 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _backToLobbyButton;
 
         [Header("Animation")]
-        [SerializeField] private float _staggerDelay = 0.1f;
+        [SerializeField] private float _crownPopDelay = 0.1f;
         [SerializeField] private float _crownPopDuration = 0.3f;
+        [SerializeField] private AnimationCurve _crownPopCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
         private EventBus.BattleEndedEvent _battleEvent;
-        private bool _isAnimating;
+        private Coroutine _animationCoroutine;
 
         public void DisplayResult(EventBus.BattleEndedEvent evt)
         {
             _battleEvent = evt;
             SetupUI();
-            StartCoroutine(PlayResultAnimation());
+            
+            if (_animationCoroutine != null) StopCoroutine(_animationCoroutine);
+            _animationCoroutine = StartCoroutine(PlayResultAnimation());
         }
 
         private void SetupUI()
@@ -69,8 +67,8 @@ namespace CRClone.UI.Screens
             _rematchButton?.onClick.AddListener(OnRematch);
             _backToLobbyButton?.onClick.AddListener(OnBackToLobby);
 
-            bool isPlayer1Victory = evt.result == BattleStatus.Player1Won;
-            bool isDraw = evt.result == BattleStatus.Draw;
+            bool isPlayer1Victory = _battleEvent.result == BattleStatus.Player1Won;
+            bool isDraw = _battleEvent.result == BattleStatus.Draw;
 
             _victoryBanner?.SetActive(isPlayer1Victory && !isDraw);
             _defeatBanner?.SetActive(!isPlayer1Victory && !isDraw);
@@ -79,8 +77,8 @@ namespace CRClone.UI.Screens
             string resultText = isDraw ? "DRAW" : (isPlayer1Victory ? "VICTORY" : "DEFEAT");
             if (_resultTitleText != null) _resultTitleText.text = resultText;
 
-            if (_p1NameText != null) _p1NameText.text = evt.player1Name ?? "Player 1";
-            if (_p2NameText != null) _p2NameText.text = evt.player2Name ?? "Player 2";
+            if (_player1NameText != null) _player1NameText.text = _battleEvent.player1Name ?? "Player 1";
+            if (_player2NameText != null) _player2NameText.text = _battleEvent.player2Name ?? "Player 2";
 
             SetupCrowns();
             SetupTrophyChanges();
@@ -90,58 +88,33 @@ namespace CRClone.UI.Screens
 
         private void SetupCrowns()
         {
-            ClearCrowns(_p1CrownsContainer);
-            ClearCrowns(_p2CrownsContainer);
-
             for (int i = 0; i < 3; i++)
             {
-                var p1Crown = CreateCrown(_p1CrownsContainer, i < _battleEvent.player1Crowns);
-                var p2Crown = CreateCrown(_p2CrownsContainer, i < _battleEvent.player2Crowns);
+                if (i < _player1Crowns.Length)
+                {
+                    _player1Crowns[i].sprite = i < _battleEvent.player1Crowns ? _crownFilled : _crownEmpty;
+                    _player1Crowns[i].transform.localScale = Vector3.zero;
+                }
+                if (i < _player2Crowns.Length)
+                {
+                    _player2Crowns[i].sprite = i < _battleEvent.player2Crowns ? _crownFilled : _crownEmpty;
+                    _player2Crowns[i].transform.localScale = Vector3.zero;
+                }
             }
 
             if (_battleEvent.player1Crowns == 3)
             {
-                AddKingCrown(_p1CrownsContainer);
+                for (int i = 0; i < 3; i++)
+                {
+                    if (i < _player1Crowns.Length) _player1Crowns[i].sprite = _kingCrown;
+                }
             }
             if (_battleEvent.player2Crowns == 3)
             {
-                AddKingCrown(_p2CrownsContainer);
-            }
-        }
-
-        private GameObject CreateCrown(Transform container, bool filled)
-        {
-            if (_crownPrefab == null || container == null) return null;
-
-            var crownGO = Instantiate(_crownPrefab, container);
-            var image = crownGO.GetComponent<Image>();
-            if (image != null)
-            {
-                image.sprite = filled ? _crownFilled : _crownEmpty;
-            }
-            crownGO.transform.localScale = Vector3.zero;
-            return crownGO;
-        }
-
-        private void AddKingCrown(Transform container)
-        {
-            if (_crownPrefab == null || container == null || _kingCrown == null) return;
-
-            var crownGO = Instantiate(_crownPrefab, container);
-            var image = crownGO.GetComponent<Image>();
-            if (image != null)
-            {
-                image.sprite = _kingCrown;
-            }
-            crownGO.transform.localScale = Vector3.zero;
-        }
-
-        private void ClearCrowns(Transform container)
-        {
-            if (container == null) return;
-            foreach (Transform child in container)
-            {
-                Destroy(child.gameObject);
+                for (int i = 0; i < 3; i++)
+                {
+                    if (i < _player2Crowns.Length) _player2Crowns[i].sprite = _kingCrown;
+                }
             }
         }
 
@@ -150,22 +123,22 @@ namespace CRClone.UI.Screens
             int p1Change = _battleEvent.player1TrophyChange;
             int p2Change = _battleEvent.player2TrophyChange;
 
-            if (_p1TrophyChangeText != null)
+            if (_player1TrophyChangeText != null)
             {
-                _p1TrophyChangeText.text = p1Change >= 0 ? $"+{p1Change}" : p1Change.ToString();
-                _p1TrophyChangeText.color = p1Change >= 0 ? Color.green : Color.red;
+                _player1TrophyChangeText.text = p1Change >= 0 ? $"+{p1Change}" : p1Change.ToString();
+                _player1TrophyChangeText.color = p1Change >= 0 ? Color.green : Color.red;
             }
 
-            if (_p2TrophyChangeText != null)
+            if (_player2TrophyChangeText != null)
             {
-                _p2TrophyChangeText.text = p2Change >= 0 ? $"+{p2Change}" : p2Change.ToString();
-                _p2TrophyChangeText.color = p2Change >= 0 ? Color.green : Color.red;
+                _player2TrophyChangeText.text = p2Change >= 0 ? $"+{p2Change}" : p2Change.ToString();
+                _player2TrophyChangeText.color = p2Change >= 0 ? Color.green : Color.red;
             }
         }
 
         private void SetupRewards()
         {
-            if (_rewardsContainer == null) return;
+            if (_rewardsContainer == null || _rewardItemPrefab == null) return;
 
             foreach (Transform child in _rewardsContainer)
             {
@@ -177,7 +150,7 @@ namespace CRClone.UI.Screens
                 foreach (var reward in _battleEvent.rewards)
                 {
                     var rewardGO = Instantiate(_rewardItemPrefab, _rewardsContainer);
-                    var rewardUI = rewardGO.GetComponent<RewardItemUI>();
+                    var rewardUI = rewardGO.GetComponent<BattleRewardItemUI>();
                     if (rewardUI != null)
                     {
                         rewardUI.Initialize(reward);
@@ -188,134 +161,89 @@ namespace CRClone.UI.Screens
 
         private void SetupBattleLog()
         {
-            if (_battleLogContainer == null || _battleEvent.keyEvents == null) return;
+            if (_battleLogContainer == null || _battleLogItemPrefab == null || _battleEvent.keyEvents == null) return;
 
             foreach (Transform child in _battleLogContainer)
             {
                 Destroy(child.gameObject);
             }
 
-            foreach (var evt in _battleEvent.keyEvents)
+            foreach (var logEvent in _battleEvent.keyEvents)
             {
                 var logGO = Instantiate(_battleLogItemPrefab, _battleLogContainer);
                 var logUI = logGO.GetComponent<BattleLogItemUI>();
                 if (logUI != null)
                 {
-                    logUI.Initialize(evt);
+                    logUI.Initialize(logEvent);
                 }
             }
         }
 
-        private System.Collections.IEnumerator PlayResultAnimation()
+        private IEnumerator PlayResultAnimation()
         {
-            _isAnimating = true;
+            yield return new WaitForSeconds(0.5f);
 
-            yield return AnimateBanner();
-            yield return AnimateCrowns();
-            yield return AnimateTrophyChanges();
-            yield return AnimateRewards();
+            var p1Crowns = new List<Image>(_player1Crowns);
+            var p2Crowns = new List<Image>(_player2Crowns);
 
-            _isAnimating = false;
-        }
-
-        private System.Collections.IEnumerator AnimateBanner()
-        {
-            GameObject activeBanner = _victoryBanner?.activeSelf == true ? _victoryBanner :
-                                     _defeatBanner?.activeSelf == true ? _defeatBanner : _drawBanner;
-
-            if (activeBanner == null) yield break;
-
-            var canvasGroup = activeBanner.GetComponent<CanvasGroup>();
-            if (canvasGroup == null) canvasGroup = activeBanner.AddComponent<CanvasGroup>();
-            var rect = activeBanner.GetComponent<RectTransform>();
-
-            canvasGroup.alpha = 0f;
-            rect.localScale = Vector3.one * 0.5f;
-
-            float elapsed = 0f;
-            while (elapsed < _bannerDuration)
-            {
-                elapsed += Time.deltaTime;
-                float t = _bannerCurve.Evaluate(elapsed / _bannerDuration);
-                canvasGroup.alpha = t;
-                rect.localScale = Vector3.Lerp(Vector3.one * 0.5f, Vector3.one, t);
-                yield return null;
-            }
-
-            canvasGroup.alpha = 1f;
-            rect.localScale = Vector3.one;
-
-            UISoundPlayer.Instance?.PlayVictory();
-        }
-
-        private System.Collections.IEnumerator AnimateCrowns()
-        {
-            yield return new WaitForSeconds(0.3f);
-
-            var p1Crowns = GetCrownObjects(_p1CrownsContainer);
-            var p2Crowns = GetCrownObjects(_p2CrownsContainer);
-
-            int maxCrowns = Math.Max(p1Crowns.Count, p2Crowns.Count);
+            int maxCrowns = Math.Max(_battleEvent.player1Crowns, _battleEvent.player2Crowns);
 
             for (int i = 0; i < maxCrowns; i++)
             {
-                if (i < p1Crowns.Count)
+                if (i < p1Crowns.Count && i < _battleEvent.player1Crowns)
                 {
                     StartCoroutine(PopCrown(p1Crowns[i]));
                 }
-                if (i < p2Crowns.Count)
+                if (i < p2Crowns.Count && i < _battleEvent.player2Crowns)
                 {
                     StartCoroutine(PopCrown(p2Crowns[i]));
                 }
-                yield return new WaitForSeconds(_staggerDelay);
+                yield return new WaitForSeconds(_crownPopDelay);
             }
-        }
 
-        private List<GameObject> GetCrownObjects(Transform container)
-        {
-            var list = new List<GameObject>();
-            if (container == null) return list;
-            foreach (Transform child in container)
+            yield return new WaitForSeconds(0.5f);
+
+            if (_player1TrophyChangeText != null)
             {
-                list.Add(child.gameObject);
+                StartCoroutine(AnimateTrophyChange(_player1TrophyChangeText, 0, _battleEvent.player1TrophyChange));
             }
-            return list;
+            if (_player2TrophyChangeText != null)
+            {
+                StartCoroutine(AnimateTrophyChange(_player2TrophyChangeText, 0, _battleEvent.player2TrophyChange));
+            }
         }
 
-        private System.Collections.IEnumerator PopCrown(GameObject crown)
+        private IEnumerator PopCrown(Image crown)
         {
             if (crown == null) yield break;
 
             float elapsed = 0f;
+            Vector3 startScale = Vector3.zero;
+            Vector3 targetScale = Vector3.one * 1.2f;
+            Vector3 endScale = Vector3.one;
+
             while (elapsed < _crownPopDuration)
             {
                 elapsed += Time.deltaTime;
-                float t = AnimationCurves.EaseOutBack.Evaluate(elapsed / _crownPopDuration);
-                crown.transform.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, t);
+                float t = _crownPopCurve.Evaluate(elapsed / _crownPopDuration);
+                crown.transform.localScale = Vector3.Lerp(startScale, targetScale, t);
                 yield return null;
             }
-            crown.transform.localScale = Vector3.one;
+
+            elapsed = 0f;
+            while (elapsed < 0.1f)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / 0.1f;
+                crown.transform.localScale = Vector3.Lerp(targetScale, endScale, t);
+                yield return null;
+            }
+
+            crown.transform.localScale = endScale;
         }
 
-        private System.Collections.IEnumerator AnimateTrophyChanges()
+        private IEnumerator AnimateTrophyChange(Text text, int startValue, int endValue)
         {
-            yield return new WaitForSeconds(0.5f);
-
-            AnimateTrophyText(_p1TrophyChangeText, _battleEvent.player1TrophyChange);
-            AnimateTrophyText(_p2TrophyChangeText, _battleEvent.player2TrophyChange);
-        }
-
-        private void AnimateTrophyText(Text text, int change)
-        {
-            if (text == null) return;
-
-            StartCoroutine(TrophyCountAnimation(text, change));
-        }
-
-        private System.Collections.IEnumerator TrophyCountAnimation(Text text, int targetChange)
-        {
-            int startValue = 0;
-            int endValue = targetChange;
             float duration = 1f;
             float elapsed = 0f;
 
@@ -329,35 +257,6 @@ namespace CRClone.UI.Screens
             }
 
             text.text = endValue >= 0 ? $"+{endValue}" : endValue.ToString();
-        }
-
-        private System.Collections.IEnumerator AnimateRewards()
-        {
-            yield return new WaitForSeconds(0.3f);
-
-            if (_rewardsContainer == null) yield break;
-
-            for (int i = 0; i < _rewardsContainer.childCount; i++)
-            {
-                var reward = _rewardsContainer.GetChild(i).gameObject;
-                reward.transform.localScale = Vector3.zero;
-                StartCoroutine(PopReward(reward));
-                yield return new WaitForSeconds(_staggerDelay);
-            }
-        }
-
-        private System.Collections.IEnumerator PopReward(GameObject reward)
-        {
-            float elapsed = 0f;
-            float duration = 0.3f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float t = AnimationCurves.EaseOutBack.Evaluate(elapsed / duration);
-                reward.transform.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, t);
-                yield return null;
-            }
-            reward.transform.localScale = Vector3.one;
         }
 
         private void OnWatchReplay()
@@ -387,37 +286,75 @@ namespace CRClone.UI.Screens
         }
     }
 
-    public class RewardItemUI : MonoBehaviour
+    public class BattleRewardItemUI : MonoBehaviour
     {
         [SerializeField] private Image _iconImage;
-        [SerializeField] private Text _amountText;
-        [SerializeField] private Text _typeText;
+        [SerializeField] private Text _nameText;
+        [SerializeField] private Text _countText;
+        [SerializeField] private Image _rarityFrame;
 
         public void Initialize(EventBus.ChestReward reward)
         {
-            if (_typeText != null)
+            string name = "";
+            int count = 0;
+
+            switch (reward.type)
             {
-                _typeText.text = reward.type.ToString();
+                case EventBus.RewardType.Card:
+                    var cardData = Services.Get<DataManager>().GetCard(reward.cardId);
+                    if (cardData != null)
+                    {
+                        name = cardData.cardName;
+                        count = reward.count;
+                        if (_iconImage != null)
+                        {
+                            _iconImage.sprite = Services.Get<AssetManager>().LoadSprite(cardData.portraitId);
+                        }
+                        if (_rarityFrame != null)
+                        {
+                            _rarityFrame.color = GetRarityColor(cardData.rarity);
+                        }
+                    }
+                    break;
+                case EventBus.RewardType.Gold:
+                    name = "Gold";
+                    count = reward.gold;
+                    if (_iconImage != null) _iconImage.color = Color.yellow;
+                    break;
+                case EventBus.RewardType.Gems:
+                    name = "Gems";
+                    count = reward.gems;
+                    if (_iconImage != null) _iconImage.color = new Color(0f, 0.7f, 1f);
+                    break;
+                case EventBus.RewardType.WildCard:
+                    name = $"Wild {reward.rarity}";
+                    count = reward.count;
+                    if (_rarityFrame != null)
+                    {
+                        _rarityFrame.color = GetRarityColor(reward.rarity);
+                    }
+                    break;
             }
 
-            if (_amountText != null)
+            if (_nameText != null) _nameText.text = name;
+            if (_countText != null) _countText.text = count > 1 ? $"x{count}" : "";
+        }
+
+        private Color GetRarityColor(CardRarity rarity)
+        {
+            if (AccessibilityManager.Instance != null)
             {
-                switch (reward.type)
-                {
-                    case EventBus.RewardType.Card:
-                        _amountText.text = $"{reward.cardId} x{reward.count}";
-                        break;
-                    case EventBus.RewardType.Gold:
-                        _amountText.text = reward.gold.ToString("N0");
-                        break;
-                    case EventBus.RewardType.Gems:
-                        _amountText.text = reward.gems.ToString("N0");
-                        break;
-                    case EventBus.RewardType.WildCard:
-                        _amountText.text = $"Wild {reward.rarity} x{reward.count}";
-                        break;
-                }
+                return AccessibilityManager.Instance.GetRarityColor(rarity);
             }
+            return rarity switch
+            {
+                CardRarity.Common => new Color(0.62f, 0.62f, 0.62f),
+                CardRarity.Rare => new Color(0.13f, 0.59f, 0.95f),
+                CardRarity.Epic => new Color(0.61f, 0.15f, 0.69f),
+                CardRarity.Legendary => new Color(1f, 0.6f, 0f),
+                CardRarity.Champion => new Color(0.91f, 0.12f, 0.39f),
+                _ => Color.white
+            };
         }
     }
 
@@ -439,6 +376,11 @@ namespace CRClone.UI.Screens
             if (_eventText != null)
             {
                 _eventText.text = logEvent.description;
+            }
+
+            if (_eventIcon != null)
+            {
+                // Set icon based on event type
             }
         }
     }

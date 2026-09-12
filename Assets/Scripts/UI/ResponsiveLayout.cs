@@ -17,7 +17,7 @@ namespace CRClone.UI
     {
         public static ResponsiveLayout Instance { get; private set; }
 
-        [Header("Breakpoints (width in pixels)")]
+        [Header("Breakpoints")]
         [SerializeField] private int _mobilePortraitMax = 767;
         [SerializeField] private int _mobileLandscapeMax = 1023;
         [SerializeField] private int _tabletMax = 1365;
@@ -34,23 +34,19 @@ namespace CRClone.UI
         [SerializeField] private bool _useSafeArea = true;
         [SerializeField] private RectTransform _safeAreaContainer;
 
-        [Header("Reference Resolution")]
-        [SerializeField] private Vector2 _referenceResolution = new Vector2(1920, 1080);
-
         private DeviceBreakpoint _currentBreakpoint;
         private float _currentScale;
         private Rect _safeArea;
         private CanvasScaler _canvasScaler;
-        private bool _initialized;
 
         public DeviceBreakpoint CurrentBreakpoint => _currentBreakpoint;
         public float CurrentScale => _currentScale;
         public Rect SafeArea => _safeArea;
-        public Vector2 SafeAreaMin => new Vector2(_safeArea.xMin, _safeArea.yMin);
-        public Vector2 SafeAreaMax => new Vector2(_safeArea.xMax, _safeArea.yMax);
+        public bool IsMobile => _currentBreakpoint == DeviceBreakpoint.MobilePortrait || _currentBreakpoint == DeviceBreakpoint.MobileLandscape;
+        public bool IsTablet => _currentBreakpoint == DeviceBreakpoint.Tablet;
+        public bool IsDesktop => _currentBreakpoint == DeviceBreakpoint.Desktop || _currentBreakpoint == DeviceBreakpoint.LargeDesktop;
 
         public event Action<DeviceBreakpoint> OnBreakpointChanged;
-        public event Action<Rect> OnSafeAreaChanged;
 
         private void Awake()
         {
@@ -65,39 +61,27 @@ namespace CRClone.UI
             _canvasScaler = GetComponent<CanvasScaler>();
             if (_canvasScaler == null) _canvasScaler = gameObject.AddComponent<CanvasScaler>();
 
-            Initialize();
-        }
-
-        private void Initialize()
-        {
-            _canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            _canvasScaler.referenceResolution = _referenceResolution;
-            _canvasScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            _canvasScaler.matchWidthOrHeight = 0.5f;
-
             UpdateBreakpoint();
             UpdateSafeArea();
-            _initialized = true;
+            ApplyLayout();
         }
 
         private void Update()
         {
-            if (!_initialized) return;
-
             DeviceBreakpoint previousBreakpoint = _currentBreakpoint;
             UpdateBreakpoint();
             UpdateSafeArea();
 
             if (_currentBreakpoint != previousBreakpoint)
             {
+                ApplyLayout();
                 OnBreakpointChanged?.Invoke(_currentBreakpoint);
-                ApplyBreakpointSettings();
             }
         }
 
         private void UpdateBreakpoint()
         {
-            float width = Screen.width;
+            int width = Screen.width;
 
             if (width <= _mobilePortraitMax)
                 _currentBreakpoint = DeviceBreakpoint.MobilePortrait;
@@ -123,26 +107,22 @@ namespace CRClone.UI
 
         private void UpdateSafeArea()
         {
+            if (!_useSafeArea) return;
+
             Rect newSafeArea = Screen.safeArea;
-
-            if (!_useSafeArea)
-            {
-                newSafeArea = new Rect(0, 0, Screen.width, Screen.height);
-            }
-
             if (newSafeArea != _safeArea)
             {
                 _safeArea = newSafeArea;
-                OnSafeAreaChanged?.Invoke(_safeArea);
                 ApplySafeArea();
             }
         }
 
-        private void ApplyBreakpointSettings()
+        private void ApplyLayout()
         {
             if (_canvasScaler != null)
             {
-                _canvasScaler.referenceResolution = _referenceResolution * _currentScale;
+                _canvasScaler.matchWidthOrHeight = 0.5f;
+                _canvasScaler.referenceResolution = new Vector2(1920, 1080) * _currentScale;
             }
         }
 
@@ -173,36 +153,14 @@ namespace CRClone.UI
             ApplySafeArea();
         }
 
-        public static DeviceBreakpoint GetBreakpointForWidth(int width, int mobilePortraitMax = 767, int mobileLandscapeMax = 1023, int tabletMax = 1365, int desktopMax = 1919)
+        public float GetScaledSize(float baseSize)
         {
-            if (width <= mobilePortraitMax) return DeviceBreakpoint.MobilePortrait;
-            if (width <= mobileLandscapeMax) return DeviceBreakpoint.MobileLandscape;
-            if (width <= tabletMax) return DeviceBreakpoint.Tablet;
-            if (width <= desktopMax) return DeviceBreakpoint.Desktop;
-            return DeviceBreakpoint.LargeDesktop;
-        }
-
-        public static float GetScaleForBreakpoint(DeviceBreakpoint breakpoint, float mobilePortraitScale = 0.8f, float mobileLandscapeScale = 1.0f, float tabletScale = 1.1f, float desktopScale = 1.2f, float largeDesktopScale = 1.3f)
-        {
-            return breakpoint switch
-            {
-                DeviceBreakpoint.MobilePortrait => mobilePortraitScale,
-                DeviceBreakpoint.MobileLandscape => mobileLandscapeScale,
-                DeviceBreakpoint.Tablet => tabletScale,
-                DeviceBreakpoint.Desktop => desktopScale,
-                DeviceBreakpoint.LargeDesktop => largeDesktopScale,
-                _ => 1f
-            };
+            return baseSize * _currentScale;
         }
 
         public Vector2 GetScaledSize(Vector2 baseSize)
         {
             return baseSize * _currentScale;
-        }
-
-        public float GetScaledFloat(float baseValue)
-        {
-            return baseValue * _currentScale;
         }
 
         public int GetScaledInt(int baseValue)
@@ -214,15 +172,22 @@ namespace CRClone.UI
         public void SimulateBreakpoint(DeviceBreakpoint breakpoint)
         {
             _currentBreakpoint = breakpoint;
-            _currentScale = GetScaleForBreakpoint(breakpoint, _mobilePortraitScale, _mobileLandscapeScale, _tabletScale, _desktopScale, _largeDesktopScale);
-            ApplyBreakpointSettings();
+            _currentScale = breakpoint switch
+            {
+                DeviceBreakpoint.MobilePortrait => _mobilePortraitScale,
+                DeviceBreakpoint.MobileLandscape => _mobileLandscapeScale,
+                DeviceBreakpoint.Tablet => _tabletScale,
+                DeviceBreakpoint.Desktop => _desktopScale,
+                DeviceBreakpoint.LargeDesktop => _largeDesktopScale,
+                _ => 1f
+            };
+            ApplyLayout();
             OnBreakpointChanged?.Invoke(_currentBreakpoint);
         }
 
         public void SimulateSafeArea(Rect safeArea)
         {
             _safeArea = safeArea;
-            OnSafeAreaChanged?.Invoke(_safeArea);
             ApplySafeArea();
         }
         #endif
@@ -301,8 +266,8 @@ namespace CRClone.UI
 
             if (ResponsiveLayout.Instance != null)
             {
-                ResponsiveLayout.Instance.OnSafeAreaChanged += ApplySafeArea;
-                ApplySafeArea(ResponsiveLayout.Instance.SafeArea);
+                ResponsiveLayout.Instance.OnBreakpointChanged += OnBreakpointChanged;
+                ApplySafeArea();
             }
         }
 
@@ -310,28 +275,30 @@ namespace CRClone.UI
         {
             if (ResponsiveLayout.Instance != null)
             {
-                ResponsiveLayout.Instance.OnSafeAreaChanged -= ApplySafeArea;
+                ResponsiveLayout.Instance.OnBreakpointChanged -= OnBreakpointChanged;
             }
         }
 
-        private void ApplySafeArea(Rect safeArea)
+        private void OnBreakpointChanged(DeviceBreakpoint breakpoint)
         {
-            if (_targetRect == null) return;
+            ApplySafeArea();
+        }
 
+        private void ApplySafeArea()
+        {
+            if (ResponsiveLayout.Instance == null || _targetRect == null) return;
+
+            Rect safeArea = ResponsiveLayout.Instance.SafeArea;
             Vector2 anchorMin = _targetRect.anchorMin;
             Vector2 anchorMax = _targetRect.anchorMax;
 
             float screenWidth = Screen.width;
             float screenHeight = Screen.height;
 
-            if (_applyTop)
-                anchorMax.y = safeArea.yMax / screenHeight;
-            if (_applyBottom)
-                anchorMin.y = safeArea.yMin / screenHeight;
-            if (_applyLeft)
-                anchorMin.x = safeArea.xMin / screenWidth;
-            if (_applyRight)
-                anchorMax.x = safeArea.xMax / screenWidth;
+            if (_applyTop) anchorMax.y = safeArea.yMax / screenHeight;
+            if (_applyBottom) anchorMin.y = safeArea.yMin / screenHeight;
+            if (_applyLeft) anchorMin.x = safeArea.xMin / screenWidth;
+            if (_applyRight) anchorMax.x = safeArea.xMax / screenWidth;
 
             _targetRect.anchorMin = anchorMin;
             _targetRect.anchorMax = anchorMax;

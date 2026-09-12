@@ -11,7 +11,7 @@ namespace CRClone.UI.Screens
     public class ShopScreen : MonoBehaviour
     {
         [Header("Top Bar")]
-        [SerializeField] private Text _gemsText;
+        [SerializeField] private Text _gemText;
         [SerializeField] private Text _goldText;
         [SerializeField] private Button _backButton;
 
@@ -29,16 +29,18 @@ namespace CRClone.UI.Screens
         [SerializeField] private Transform _gemsContent;
         [SerializeField] private Transform _wildCardsContent;
 
-        [Header("Offer Template")]
+        [Header("Offer Prefabs")]
         [SerializeField] private GameObject _offerItemPrefab;
+        [SerializeField] private GameObject _largeOfferPrefab;
 
         [Header("Timers")]
         [SerializeField] private Text _dailyRefreshTimer;
         [SerializeField] private Text _specialOfferTimer;
 
         private ShopTab _currentTab = ShopTab.Daily;
+        private float _dailyRefreshTime = 86400f; // 24 hours
+        private float _specialOfferTime = 3600f; // 1 hour
         private Coroutine _timerCoroutine;
-        private Dictionary<ShopTab, List<ShopOffer>> _cachedOffers = new Dictionary<ShopTab, List<ShopOffer>>();
 
         public enum ShopTab
         {
@@ -49,40 +51,44 @@ namespace CRClone.UI.Screens
             WildCards
         }
 
-        public void Initialize()
+        private void Awake()
+        {
+            InitializeComponents();
+        }
+
+        private void InitializeComponents()
         {
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
-            SetupTabs();
+            _dailyTab?.onClick.AddListener(() => SwitchTab(ShopTab.Daily));
+            _specialTab?.onClick.AddListener(() => SwitchTab(ShopTab.Special));
+            _chestsTab?.onClick.AddListener(() => SwitchTab(ShopTab.Chests));
+            _gemsTab?.onClick.AddListener(() => SwitchTab(ShopTab.Gems));
+            _wildCardsTab?.onClick.AddListener(() => SwitchTab(ShopTab.WildCards));
+
+            LoadOffers();
             UpdateCurrency();
-            ShowTab(ShopTab.Daily);
-            StartTimer();
         }
 
-        private void SetupTabs()
+        private void OnEnable()
         {
-            _dailyTab?.onClick.AddListener(() => ShowTab(ShopTab.Daily));
-            _specialTab?.onClick.AddListener(() => ShowTab(ShopTab.Special));
-            _chestsTab?.onClick.AddListener(() => ShowTab(ShopTab.Chests));
-            _gemsTab?.onClick.AddListener(() => ShowTab(ShopTab.Gems));
-            _wildCardsTab?.onClick.AddListener(() => ShowTab(ShopTab.WildCards));
+            UpdateCurrency();
+            StartTimers();
         }
 
-        private void ShowTab(ShopTab tab)
+        private void OnDisable()
+        {
+            StopTimers();
+        }
+
+        private void SwitchTab(ShopTab tab)
         {
             _currentTab = tab;
-
-            _dailyContent?.gameObject.SetActive(tab == ShopTab.Daily);
-            _specialContent?.gameObject.SetActive(tab == ShopTab.Special);
-            _chestsContent?.gameObject.SetActive(tab == ShopTab.Chests);
-            _gemsContent?.gameObject.SetActive(tab == ShopTab.Gems);
-            _wildCardsContent?.gameObject.SetActive(tab == ShopTab.WildCards);
-
-            UpdateTabButtons();
-            LoadOffersForTab(tab);
+            UpdateTabVisuals();
+            ShowTabContent(tab);
         }
 
-        private void UpdateTabButtons()
+        private void UpdateTabVisuals()
         {
             SetTabSelected(_dailyTab, _currentTab == ShopTab.Daily);
             SetTabSelected(_specialTab, _currentTab == ShopTab.Special);
@@ -99,62 +105,111 @@ namespace CRClone.UI.Screens
             button.colors = colors;
         }
 
-        private void LoadOffersForTab(ShopTab tab)
+        private void ShowTabContent(ShopTab tab)
         {
-            Transform content = GetContentForTab(tab);
-            if (content == null) return;
+            _dailyContent?.gameObject.SetActive(tab == ShopTab.Daily);
+            _specialContent?.gameObject.SetActive(tab == ShopTab.Special);
+            _chestsContent?.gameObject.SetActive(tab == ShopTab.Chests);
+            _gemsContent?.gameObject.SetActive(tab == ShopTab.Gems);
+            _wildCardsContent?.gameObject.SetActive(tab == ShopTab.WildCards);
+        }
 
-            foreach (Transform child in content)
+        private void LoadOffers()
+        {
+            LoadDailyOffers();
+            LoadSpecialOffers();
+            LoadChestOffers();
+            LoadGemOffers();
+            LoadWildCardOffers();
+        }
+
+        private void LoadDailyOffers()
+        {
+            if (_dailyContent == null || _offerItemPrefab == null) return;
+
+            ClearContent(_dailyContent);
+
+            var offers = GenerateDailyOffers();
+            foreach (var offer in offers)
+            {
+                CreateOfferItem(_dailyContent, offer);
+            }
+        }
+
+        private void LoadSpecialOffers()
+        {
+            if (_specialContent == null || _largeOfferPrefab == null) return;
+
+            ClearContent(_specialContent);
+
+            var offers = GenerateSpecialOffers();
+            foreach (var offer in offers)
+            {
+                CreateLargeOffer(_specialContent, offer);
+            }
+        }
+
+        private void LoadChestOffers()
+        {
+            if (_chestsContent == null || _offerItemPrefab == null) return;
+
+            ClearContent(_chestsContent);
+
+            var offers = GenerateChestOffers();
+            foreach (var offer in offers)
+            {
+                CreateOfferItem(_chestsContent, offer);
+            }
+        }
+
+        private void LoadGemOffers()
+        {
+            if (_gemsContent == null || _offerItemPrefab == null) return;
+
+            ClearContent(_gemsContent);
+
+            var offers = GenerateGemOffers();
+            foreach (var offer in offers)
+            {
+                CreateOfferItem(_gemsContent, offer);
+            }
+        }
+
+        private void LoadWildCardOffers()
+        {
+            if (_wildCardsContent == null || _offerItemPrefab == null) return;
+
+            ClearContent(_wildCardsContent);
+
+            var offers = GenerateWildCardOffers();
+            foreach (var offer in offers)
+            {
+                CreateOfferItem(_wildCardsContent, offer);
+            }
+        }
+
+        private void ClearContent(Transform container)
+        {
+            foreach (Transform child in container)
             {
                 Destroy(child.gameObject);
-            }
-
-            if (_cachedOffers.TryGetValue(tab, out var offers))
-            {
-                foreach (var offer in offers)
-                {
-                    CreateOfferItem(content, offer);
-                }
-            }
-            else
-            {
-                RequestOffersFromServer(tab);
-            }
-        }
-
-        private Transform GetContentForTab(ShopTab tab)
-        {
-            return tab switch
-            {
-                ShopTab.Daily => _dailyContent,
-                ShopTab.Special => _specialContent,
-                ShopTab.Chests => _chestsContent,
-                ShopTab.Gems => _gemsContent,
-                ShopTab.WildCards => _wildCardsContent,
-                _ => null
-            };
-        }
-
-        private void RequestOffersFromServer(ShopTab tab)
-        {
-        }
-
-        public void SetOffers(ShopTab tab, List<ShopOffer> offers)
-        {
-            _cachedOffers[tab] = offers;
-
-            if (tab == _currentTab)
-            {
-                LoadOffersForTab(tab);
             }
         }
 
         private void CreateOfferItem(Transform parent, ShopOffer offer)
         {
-            if (_offerItemPrefab == null) return;
-
             var offerGO = Instantiate(_offerItemPrefab, parent);
-            var offerUI = offerGO.GetComponent<OfferItemUI>();
+            var offerUI = offerGO.GetComponent<ShopOfferItemUI>();
+            if (offerUI != null)
+            {
+                offerUI.Initialize(offer, OnPurchaseClicked);
+            }
+        }
+
+        private void CreateLargeOffer(Transform parent, ShopOffer offer)
+        {
+            var offerGO = Instantiate(_largeOfferPrefab, parent);
+            var offerUI = offerGO.GetComponent<ShopOfferItemUI>();
             if (offerUI != null)
             {
                 offerUI.Initialize(offer, OnPurchaseClicked);
@@ -163,23 +218,65 @@ namespace CRClone.UI.Screens
 
         private void OnPurchaseClicked(ShopOffer offer)
         {
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/PurchaseConfirmModal"));
-            var confirmUI = confirmModal?.GetComponent<PurchaseConfirmModal>();
-            if (confirmUI != null)
+            var playerData = Services.Get<GameManager>().LocalPlayer;
+            if (playerData == null) return;
+
+            bool canAfford = offer.costType == CurrencyType.Gold ? playerData.gold >= offer.cost : playerData.gems >= offer.cost;
+
+            if (!canAfford)
             {
-                confirmUI.Initialize(offer, () => ConfirmPurchase(offer));
+                EventBus.RaiseToast("Not enough currency!");
+                UISoundPlayer.Instance?.PlayError();
+                return;
             }
+
+            // Deduct currency
+            if (offer.costType == CurrencyType.Gold)
+            {
+                playerData.gold -= offer.cost;
+            }
+            else
+            {
+                playerData.gems -= offer.cost;
+            }
+
+            // Grant reward
+            GrantReward(offer);
+
+            UpdateCurrency();
+            EventBus.RaiseToast($"Purchased {offer.name}!");
+            UISoundPlayer.Instance?.PlaySuccess();
+
+            // Send to server
+            Services.Get<NetworkClient>().Send(new NetworkClient.ShopPurchaseRequest 
+            { 
+                offerId = offer.id, 
+                currency = offer.costType 
+            });
         }
 
-        private void ConfirmPurchase(ShopOffer offer)
+        private void GrantReward(ShopOffer offer)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.PurchaseRequest
-            {
-                offerId = offer.offerId,
-                currency = offer.currency
-            });
+            var playerData = Services.Get<GameManager>().LocalPlayer;
+            if (playerData == null) return;
 
-            UISoundPlayer.Instance?.PlaySuccess();
+            switch (offer.rewardType)
+            {
+                case RewardType.Card:
+                    if (!playerData.collection.ContainsKey(offer.rewardCardId))
+                        playerData.collection[offer.rewardCardId] = 0;
+                    playerData.collection[offer.rewardCardId] += offer.rewardCount;
+                    break;
+                case RewardType.Gold:
+                    playerData.gold += offer.rewardCount;
+                    break;
+                case RewardType.Gems:
+                    playerData.gems += offer.rewardCount;
+                    break;
+                case RewardType.Chest:
+                    // Add chest to chest slots
+                    break;
+            }
         }
 
         private void UpdateCurrency()
@@ -187,18 +284,27 @@ namespace CRClone.UI.Screens
             var playerData = Services.Get<GameManager>().LocalPlayer;
             if (playerData != null)
             {
-                if (_gemsText != null) _gemsText.text = playerData.gems.ToString("N0");
+                if (_gemText != null) _gemText.text = playerData.gems.ToString("N0");
                 if (_goldText != null) _goldText.text = playerData.gold.ToString("N0");
             }
         }
 
-        private void StartTimer()
+        private void StartTimers()
         {
             if (_timerCoroutine != null) StopCoroutine(_timerCoroutine);
             _timerCoroutine = StartCoroutine(TimerRoutine());
         }
 
-        private System.Collections.IEnumerator TimerRoutine()
+        private void StopTimers()
+        {
+            if (_timerCoroutine != null)
+            {
+                StopCoroutine(_timerCoroutine);
+                _timerCoroutine = null;
+            }
+        }
+
+        private IEnumerator TimerRoutine()
         {
             while (true)
             {
@@ -211,97 +317,154 @@ namespace CRClone.UI.Screens
         {
             if (_dailyRefreshTimer != null)
             {
-                TimeSpan dailyRemaining = GetDailyRefreshTime();
-                _dailyRefreshTimer.text = FormatTime(dailyRemaining);
+                TimeSpan ts = TimeSpan.FromSeconds(_dailyRefreshTime);
+                _dailyRefreshTimer.text = $"{ts.Hours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
             }
 
             if (_specialOfferTimer != null)
             {
-                TimeSpan specialRemaining = GetSpecialOfferTime();
-                _specialOfferTimer.text = FormatTime(specialRemaining);
+                TimeSpan ts = TimeSpan.FromSeconds(_specialOfferTime);
+                _specialOfferTimer.text = $"{ts.Hours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
             }
         }
 
-        private TimeSpan GetDailyRefreshTime()
+        private List<ShopOffer> GenerateDailyOffers()
         {
-            DateTime now = DateTime.UtcNow;
-            DateTime nextRefresh = now.Date.AddDays(1);
-            return nextRefresh - now;
-        }
+            var dataManager = Services.Get<DataManager>();
+            var playerData = Services.Get<GameManager>().LocalPlayer;
+            var offers = new List<ShopOffer>();
 
-        private TimeSpan GetSpecialOfferTime()
-        {
-            return TimeSpan.FromHours(24);
-        }
-
-        private string FormatTime(TimeSpan time)
-        {
-            if (time.TotalHours >= 1)
-                return $"{(int)time.TotalHours}h {time.Minutes}m";
-            else
-                return $"{time.Minutes}m {time.Seconds}s";
-        }
-
-        public void OnPurchaseCompleted(string offerId, List<EventBus.ChestReward> rewards)
-        {
-            var offer = FindOfferById(offerId);
-            if (offer != null)
+            // Card offers
+            var cards = dataManager.GetAllCards();
+            var availableCards = new List<CardData>();
+            foreach (var card in cards)
             {
-                offer.purchased = true;
+                if (card.isEnabled && playerData?.collection.ContainsKey(card.cardId) == true)
+                {
+                    availableCards.Add(card);
+                }
             }
 
-            UpdateCurrency();
-            UIManager.Instance?.ShowToast("Purchase successful!");
-
-            var rewardModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/RewardModal"));
-            var rewardUI = rewardModal?.GetComponent<RewardModal>();
-            if (rewardUI != null)
+            for (int i = 0; i < 4 && i < availableCards.Count; i++)
             {
-                rewardUI.Initialize(rewards);
+                var card = availableCards[UnityEngine.Random.Range(0, availableCards.Count)];
+                offers.Add(new ShopOffer
+                {
+                    id = $"daily_card_{i}",
+                    name = card.cardName,
+                    description = $"{card.cardName} x{UnityEngine.Random.Range(1, 10)}",
+                    cost = UnityEngine.Random.Range(50, 500),
+                    costType = CurrencyType.Gold,
+                    rewardType = RewardType.Card,
+                    rewardCardId = card.cardId,
+                    rewardCount = UnityEngine.Random.Range(1, 10),
+                    iconSprite = Services.Get<AssetManager>().LoadSprite(card.portraitId)
+                });
             }
+
+            return offers;
         }
 
-        private ShopOffer FindOfferById(string offerId)
+        private List<ShopOffer> GenerateSpecialOffers()
         {
-            foreach (var offers in _cachedOffers.Values)
+            var offers = new List<ShopOffer>();
+            offers.Add(new ShopOffer
             {
-                var offer = offers.Find(o => o.offerId == offerId);
-                if (offer != null) return offer;
-            }
-            return null;
+                id = "special_bundle_1",
+                name = "Starter Bundle",
+                description = "10,000 Gold + 100 Gems + 5 Chests",
+                cost = 500,
+                costType = CurrencyType.Gems,
+                rewardType = RewardType.Gold,
+                rewardCount = 10000,
+                isSpecial = true
+            });
+            return offers;
         }
 
-        private void OnDestroy()
+        private List<ShopOffer> GenerateChestOffers()
         {
-            if (_timerCoroutine != null) StopCoroutine(_timerCoroutine);
+            var offers = new List<ShopOffer>();
+            string[] chestNames = { "Wooden Chest", "Silver Chest", "Golden Chest", "Magical Chest" };
+            int[] chestCosts = { 50, 200, 500, 1000 };
+
+            for (int i = 0; i < chestNames.Length; i++)
+            {
+                offers.Add(new ShopOffer
+                {
+                    id = $"chest_{i}",
+                    name = chestNames[i],
+                    description = $"Contains cards and gold",
+                    cost = chestCosts[i],
+                    costType = CurrencyType.Gems,
+                    rewardType = RewardType.Chest,
+                    rewardChestType = i
+                });
+            }
+            return offers;
+        }
+
+        private List<ShopOffer> GenerateGemOffers()
+        {
+            var offers = new List<ShopOffer>();
+            int[] gemAmounts = { 80, 500, 1200, 2500, 6500, 14000 };
+            int[] gemCosts = { 1, 5, 10, 20, 50, 100 };
+
+            for (int i = 0; i < gemAmounts.Length; i++)
+            {
+                offers.Add(new ShopOffer
+                {
+                    id = $"gems_{i}",
+                    name = $"{gemAmounts[i]} Gems",
+                    description = "Premium currency",
+                    cost = gemCosts[i],
+                    costType = CurrencyType.RealMoney,
+                    rewardType = RewardType.Gems,
+                    rewardCount = gemAmounts[i]
+                });
+            }
+            return offers;
+        }
+
+        private List<ShopOffer> GenerateWildCardOffers()
+        {
+            var offers = new List<ShopOffer>();
+            string[] rarities = { "Common", "Rare", "Epic", "Legendary" };
+            int[] costs = { 100, 500, 1000, 2000 };
+
+            for (int i = 0; i < rarities.Length; i++)
+            {
+                offers.Add(new ShopOffer
+                {
+                    id = $"wildcard_{i}",
+                    name = $"{rarities[i]} Wild Card",
+                    description = $"Convert to any {rarities[i]} card",
+                    cost = costs[i],
+                    costType = CurrencyType.Gold,
+                    rewardType = RewardType.WildCard,
+                    rewardRarity = (CardRarity)(i + 1),
+                    rewardCount = 1
+                });
+            }
+            return offers;
         }
     }
 
     [Serializable]
     public class ShopOffer
     {
-        public string offerId;
-        public string title;
-        public OfferType type;
-        public int cardId;
-        public int cardCount;
-        public int goldAmount;
-        public int gemAmount;
-        public int chestTypeId;
+        public string id;
+        public string name;
+        public string description;
         public int cost;
-        public CurrencyType currency;
-        public bool purchased;
-        public TimeSpan timeRemaining;
+        public CurrencyType costType;
+        public RewardType rewardType;
+        public int rewardCardId;
+        public int rewardCount;
+        public int rewardChestType;
+        public CardRarity rewardRarity;
         public Sprite iconSprite;
-    }
-
-    public enum OfferType
-    {
-        Card,
-        Gold,
-        Gems,
-        Chest,
-        WildCard
+        public bool isSpecial;
     }
 
     public enum CurrencyType
@@ -309,5 +472,14 @@ namespace CRClone.UI.Screens
         Gold,
         Gems,
         RealMoney
+    }
+
+    public enum RewardType
+    {
+        Card,
+        Gold,
+        Gems,
+        Chest,
+        WildCard
     }
 }

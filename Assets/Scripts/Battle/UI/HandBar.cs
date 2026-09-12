@@ -36,6 +36,7 @@ namespace CRClone.Battle.UI
         private int _selectedCardIndex = -1;
         private Vector2 _dragStartPosition;
         private bool _isDragging;
+        private int _currentElixir;
 
         private void Awake()
         {
@@ -53,42 +54,78 @@ namespace CRClone.Battle.UI
             {
                 _nextCardPreview.SetActive(false);
             }
+
+            SubscribeToEvents();
+            UpdateHandCards();
+            UpdateNextCardPreview();
+        }
+
+        private void OnDestroy()
+        {
+            UnsubscribeFromEvents();
+        }
+
+        private void SubscribeToEvents()
+        {
+            EventBus.OnElixirChanged += OnElixirChanged;
+            EventBus.OnCardPlayed += OnCardPlayed;
+        }
+
+        private void UnsubscribeFromEvents()
+        {
+            EventBus.OnElixirChanged -= OnElixirChanged;
+            EventBus.OnCardPlayed -= OnCardPlayed;
+        }
+
+        private void OnElixirChanged(EventBus.ElixirChangedEvent evt)
+        {
+            if (evt.playerId != 1) return; // Only local player
+
+            _currentElixir = evt.currentElixir;
+            
+            if (_elixirBar != null)
+            {
+                _elixirBar.SetElixir(evt.currentElixir);
+            }
+
+            UpdateHandCardsAffordability();
+        }
+
+        private void OnCardPlayed(EventBus.CardPlayedEvent evt)
+        {
+            if (evt.playerId != 1) return;
+
+            // Find which card was played and animate
+            for (int i = 0; i < 4; i++)
+            {
+                int cardId = i < _localPlayer?.Hand.Length ? _localPlayer.Hand[i] : 0;
+                if (cardId == evt.cardId)
+                {
+                    OnCardDeployed(i);
+                    break;
+                }
+            }
+        }
+
+        private void UpdateHandCardsAffordability()
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                int cardId = i < _localPlayer?.Hand.Length ? _localPlayer.Hand[i] : 0;
+                if (cardId > 0)
+                {
+                    var cardData = Services.Get<DataManager>().GetCard(cardId);
+                    bool affordable = _currentElixir >= cardData.elixirCost;
+                    _handCards[i].SetAffordable(affordable);
+                }
+            }
         }
 
         private void Update()
         {
             if (_localPlayer == null) return;
 
-            UpdateElixirBar();
-            UpdateHandCards();
             UpdateNextCardPreview();
-        }
-
-        private void UpdateElixirBar()
-        {
-            if (_elixirBar != null)
-            {
-                _elixirBar.SetElixir(_localPlayer.Elixir);
-            }
-        }
-
-        private void UpdateHandCards()
-        {
-            for (int i = 0; i < 4; i++)
-            {
-                int cardId = i < _localPlayer.Hand.Length ? _localPlayer.Hand[i] : 0;
-
-                if (cardId > 0)
-                {
-                    var cardData = Services.Get<DataManager>().GetCard(cardId);
-                    bool affordable = _localPlayer.Elixir >= cardData.elixirCost;
-                    _handCards[i].SetCard(cardData, affordable, i == _selectedCardIndex);
-                }
-                else
-                {
-                    _handCards[i].ClearCard();
-                }
-            }
         }
 
         private void UpdateNextCardPreview()
@@ -184,7 +221,7 @@ namespace CRClone.Battle.UI
                 if (newCardId > 0)
                 {
                     var cardData = Services.Get<DataManager>().GetCard(newCardId);
-                    _handCards[newCardIndex].PlayDrawAnimation(cardData, _localPlayer.Elixir >= cardData.elixirCost);
+                    _handCards[newCardIndex].PlayDrawAnimation(cardData, _currentElixir >= cardData.elixirCost);
                 }
             }
         }
@@ -219,6 +256,25 @@ namespace CRClone.Battle.UI
                 }
 
                 SetCardSelected(_selectedCardIndex, false);
+            }
+        }
+
+        private void UpdateHandCards()
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                int cardId = i < _localPlayer?.Hand.Length ? _localPlayer.Hand[i] : 0;
+
+                if (cardId > 0)
+                {
+                    var cardData = Services.Get<DataManager>().GetCard(cardId);
+                    bool affordable = _currentElixir >= cardData.elixirCost;
+                    _handCards[i].SetCard(cardData, affordable, i == _selectedCardIndex);
+                }
+                else
+                {
+                    _handCards[i].ClearCard();
+                }
             }
         }
     }
@@ -329,6 +385,33 @@ namespace CRClone.Battle.UI
             }
         }
 
+        public void SetAffordable(bool affordable)
+        {
+            _isAffordable = affordable;
+
+            if (_elixirCostText != null && _cardData != null)
+            {
+                _elixirCostText.color = affordable ? _handBar._affordableColor : _handBar._unaffordableColor;
+            }
+
+            if (_unaffordableOverlay != null)
+            {
+                _unaffordableOverlay.SetActive(!affordable);
+            }
+
+            if (_unaffordableColorOverlay != null)
+            {
+                _unaffordableColorOverlay.color = affordable ? Color.clear : new Color(0.5f, 0.1f, 0.1f, 0.7f);
+            }
+
+            if (_canvasGroup != null)
+            {
+                _canvasGroup.alpha = affordable ? 1f : 0.6f;
+                _canvasGroup.interactable = affordable;
+                _canvasGroup.blocksRaycasts = affordable;
+            }
+        }
+
         public void FollowCursor(Vector2 screenPos)
         {
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
@@ -364,7 +447,7 @@ namespace CRClone.Battle.UI
             return RectTransformUtility.RectangleContainsScreenPoint(_cardRectTransform, screenPos);
         }
 
-        private System.Collections.IEnumerator ShakeAnimation()
+        private IEnumerator ShakeAnimation()
         {
             Vector3 originalPos = transform.localPosition;
             for (int i = 0; i < 3; i++)
@@ -377,7 +460,7 @@ namespace CRClone.Battle.UI
             transform.localPosition = originalPos;
         }
 
-        private System.Collections.IEnumerator DeployAnimationCoroutine()
+        private IEnumerator DeployAnimationCoroutine()
         {
             float duration = _handBar._deployAnimationDuration;
             float elapsed = 0f;
@@ -396,7 +479,7 @@ namespace CRClone.Battle.UI
             _canvasGroup.alpha = 1f;
         }
 
-        private System.Collections.IEnumerator ReturnAnimationCoroutine()
+        private IEnumerator ReturnAnimationCoroutine()
         {
             float duration = 0.2f;
             float elapsed = 0f;
@@ -414,7 +497,7 @@ namespace CRClone.Battle.UI
             transform.localScale = Vector3.one;
         }
 
-        private System.Collections.IEnumerator DrawAnimationCoroutine(CardData cardData, bool affordable)
+        private IEnumerator DrawAnimationCoroutine(CardData cardData, bool affordable)
         {
             _cardData = cardData;
             _isAffordable = affordable;

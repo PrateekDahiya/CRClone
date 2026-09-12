@@ -1,7 +1,8 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
-using CRClone.UI.Animation;
+using CRClone.Core;
+using CRClone.Network;
 
 namespace CRClone.UI.Components
 {
@@ -20,15 +21,15 @@ namespace CRClone.UI.Components
         [SerializeField] private Text _replayLinkText;
         [SerializeField] private Button _viewReplayButton;
         [SerializeField] private Image _backgroundImage;
-        [SerializeField] private Sprite _ownMessageBackground;
-        [SerializeField] private Sprite _otherMessageBackground;
-        [SerializeField] private Sprite _systemMessageBackground;
-        [SerializeField] private Sprite _donationBackground;
+        [SerializeField] private Sprite _ownMessageBg;
+        [SerializeField] private Sprite _otherMessageBg;
+        [SerializeField] private Sprite _systemMessageBg;
+        [SerializeField] private Sprite _donationMessageBg;
 
-        private ChatMessage _message;
+        private ClanScreen.ChatMessage _message;
         private Action<int, string> _onDonateClicked;
 
-        public void Initialize(ChatMessage message, Action<int, string> onDonateClicked)
+        public void Initialize(ClanScreen.ChatMessage message, Action<int, string> onDonateClicked)
         {
             _message = message;
             _onDonateClicked = onDonateClicked;
@@ -42,31 +43,27 @@ namespace CRClone.UI.Components
         private void UpdateVisuals(bool isOwnMessage)
         {
             if (_senderNameText != null) _senderNameText.text = _message.senderName;
-
-            if (_timeText != null)
-            {
-                _timeText.text = _message.timestamp.ToLocalTime().ToString("HH:mm");
-            }
+            if (_timeText != null) _timeText.text = _message.timestamp.ToString("HH:mm");
 
             if (_backgroundImage != null)
             {
                 switch (_message.type)
                 {
-                    case ChatMessage.MessageType.System:
-                        _backgroundImage.sprite = _systemMessageBackground;
+                    case ClanScreen.ChatMessage.MessageType.System:
+                        _backgroundImage.sprite = _systemMessageBg;
                         break;
-                    case ChatMessage.MessageType.DonationRequest:
-                        _backgroundImage.sprite = _donationBackground;
+                    case ClanScreen.ChatMessage.MessageType.DonationRequest:
+                        _backgroundImage.sprite = _donationMessageBg;
                         break;
                     default:
-                        _backgroundImage.sprite = isOwnMessage ? _ownMessageBackground : _otherMessageBackground;
+                        _backgroundImage.sprite = isOwnMessage ? _ownMessageBg : _otherMessageBg;
                         break;
                 }
             }
 
             switch (_message.type)
             {
-                case ChatMessage.MessageType.DonationRequest:
+                case ClanScreen.ChatMessage.MessageType.DonationRequest:
                     _messageText?.gameObject.SetActive(false);
                     _donationRequestContainer?.SetActive(true);
                     _replayLinkContainer?.SetActive(false);
@@ -95,7 +92,7 @@ namespace CRClone.UI.Components
                     }
                     break;
 
-                case ChatMessage.MessageType.ReplayShare:
+                case ClanScreen.ChatMessage.MessageType.ReplayShare:
                     _messageText?.gameObject.SetActive(false);
                     _donationRequestContainer?.SetActive(false);
                     _replayLinkContainer?.SetActive(true);

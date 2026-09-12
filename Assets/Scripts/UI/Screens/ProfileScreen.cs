@@ -1,15 +1,13 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
-using CRClone.UI.Animation;
 
 namespace CRClone.UI.Screens
 {
     public class ProfileScreen : MonoBehaviour
     {
-        [Header("Player Info")]
+        [Header("Profile Info")]
         [SerializeField] private Image _avatarImage;
         [SerializeField] private Text _playerNameText;
         [SerializeField] private Text _playerTagText;
@@ -20,39 +18,46 @@ namespace CRClone.UI.Screens
         [SerializeField] private Text _winRateText;
         [SerializeField] private Text _totalBattlesText;
         [SerializeField] private Text _threeCrownWinsText;
+        [SerializeField] private Text _cardsCollectedText;
+        [SerializeField] private Text _favoriteCardText;
 
         [Header("Battle Log")]
         [SerializeField] private Transform _battleLogContainer;
         [SerializeField] private GameObject _battleLogItemPrefab;
-        [SerializeField] private int _maxLogItems = 10;
+        [SerializeField] private int _maxLogItems = 20;
 
-        [Header("Actions")]
+        [Header("Action Buttons")]
         [SerializeField] private Button _changeNameButton;
         [SerializeField] private Button _settingsButton;
         [SerializeField] private Button _backButton;
 
-        private List<BattleLogEntry> _battleLog = new List<BattleLogEntry>();
+        private void Awake()
+        {
+            InitializeComponents();
+        }
 
-        public void Initialize()
+        private void InitializeComponents()
         {
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
             _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
             _changeNameButton?.onClick.AddListener(OnChangeName);
-
-            LoadPlayerData();
-            LoadBattleLog();
         }
 
-        private void LoadPlayerData()
+        private void OnEnable()
+        {
+            RefreshProfile();
+        }
+
+        private void RefreshProfile()
         {
             var playerData = Services.Get<GameManager>().LocalPlayer;
             if (playerData == null) return;
 
-            if (_playerNameText != null) _playerNameText.text = playerData.playerName;
-            if (_playerTagText != null) _playerTagText.text = $"#{playerData.playerTag}";
-            if (_trophiesText != null) _trophiesText.text = playerData.trophies.ToString("N0");
-            if (_bestTrophiesText != null) _bestTrophiesText.text = playerData.bestTrophies.ToString("N0");
-            if (_levelText != null) _levelText.text = $"Level {playerData.level}";
+            _playerNameText.text = playerData.playerName;
+            _playerTagText.text = $"#{playerData.playerTag}";
+            _trophiesText.text = playerData.trophies.ToString("N0");
+            _bestTrophiesText.text = playerData.bestTrophies.ToString("N0");
+            _levelText.text = $"Level {playerData.level}";
 
             if (_levelProgressFill != null)
             {
@@ -60,40 +65,46 @@ namespace CRClone.UI.Screens
                 _levelProgressFill.fillAmount = progress;
             }
 
-            if (_winRateText != null)
+            int totalBattles = playerData.wins + playerData.losses + playerData.draws;
+            float winRate = totalBattles > 0 ? (float)playerData.wins / totalBattles * 100f : 0f;
+
+            _winRateText.text = $"{winRate:F1}%";
+            _totalBattlesText.text = totalBattles.ToString("N0");
+            _threeCrownWinsText.text = playerData.threeCrownWins.ToString("N0");
+
+            int cardsOwned = 0;
+            if (playerData.collection != null)
             {
-                float winRate = playerData.totalBattles > 0 ? (float)playerData.wins / playerData.totalBattles * 100f : 0f;
-                _winRateText.text = $"{winRate:F1}%";
+                foreach (var kvp in playerData.collection)
+                {
+                    if (kvp.Value > 0) cardsOwned++;
+                }
+            }
+            _cardsCollectedText.text = $"{cardsOwned}/100";
+
+            if (_favoriteCardText != null && playerData.favoriteCardId > 0)
+            {
+                var cardData = Services.Get<DataManager>().GetCard(playerData.favoriteCardId);
+                _favoriteCardText.text = cardData?.cardName ?? "None";
             }
 
-            if (_totalBattlesText != null) _totalBattlesText.text = playerData.totalBattles.ToString("N0");
-            if (_threeCrownWinsText != null) _threeCrownWinsText.text = playerData.threeCrownWins.ToString("N0");
+            RefreshBattleLog(playerData);
         }
 
-        private float GetLevelProgress(long exp, int level)
+        private float GetLevelProgress(long experience, int level)
         {
             long currentLevelExp = GetExpForLevel(level);
             long nextLevelExp = GetExpForLevel(level + 1);
-            return nextLevelExp > currentLevelExp ? (float)(exp - currentLevelExp) / (nextLevelExp - currentLevelExp) : 1f;
+            if (nextLevelExp <= currentLevelExp) return 1f;
+            return (float)(experience - currentLevelExp) / (nextLevelExp - currentLevelExp);
         }
 
         private long GetExpForLevel(int level)
         {
-            return (long)(Mathf.Pow(level, 2) * 1000);
+            return (long)(level * level * 1000);
         }
 
-        private void LoadBattleLog()
-        {
-            var playerData = Services.Get<GameManager>().LocalPlayer;
-            if (playerData?.battleLog != null)
-            {
-                _battleLog = playerData.battleLog;
-            }
-
-            RefreshBattleLog();
-        }
-
-        private void RefreshBattleLog()
+        private void RefreshBattleLog(GameManager.PlayerData playerData)
         {
             if (_battleLogContainer == null || _battleLogItemPrefab == null) return;
 
@@ -102,14 +113,18 @@ namespace CRClone.UI.Screens
                 Destroy(child.gameObject);
             }
 
-            int count = Math.Min(_battleLog.Count, _maxLogItems);
-            for (int i = 0; i < count; i++)
+            if (playerData.battleLog != null)
             {
-                var logGO = Instantiate(_battleLogItemPrefab, _battleLogContainer);
-                var logUI = logGO.GetComponent<BattleLogItemUI>();
-                if (logUI != null)
+                int count = Math.Min(playerData.battleLog.Count, _maxLogItems);
+                for (int i = 0; i < count; i++)
                 {
-                    logUI.Initialize(_battleLog[i]);
+                    var logEntry = playerData.battleLog[i];
+                    var logGO = Instantiate(_battleLogItemPrefab, _battleLogContainer);
+                    var logUI = logGO.GetComponent<BattleLogItemUI>();
+                    if (logUI != null)
+                    {
+                        logUI.Initialize(logEntry);
+                    }
                 }
             }
         }
@@ -130,23 +145,10 @@ namespace CRClone.UI.Screens
             if (playerData != null)
             {
                 playerData.playerName = newName;
-                if (_playerNameText != null) _playerNameText.text = newName;
+                _playerNameText.text = newName;
                 Services.Get<NetworkClient>().Send(new NetworkClient.ChangeNameRequest { newName = newName });
             }
         }
-    }
-
-    [Serializable]
-    public class BattleLogEntry
-    {
-        public DateTime timestamp;
-        public BattleResult result;
-        public int playerCrowns;
-        public int opponentCrowns;
-        public int trophyChange;
-        public string opponentName;
-        public string battleMode;
-        public long replayId;
     }
 
     public class BattleLogItemUI : MonoBehaviour
@@ -155,30 +157,23 @@ namespace CRClone.UI.Screens
         [SerializeField] private Text _resultText;
         [SerializeField] private Text _crownsText;
         [SerializeField] private Text _trophyChangeText;
-        [SerializeField] private Text _opponentText;
         [SerializeField] private Text _modeText;
         [SerializeField] private Button _replayButton;
 
         public void Initialize(BattleLogEntry entry)
         {
-            if (_dateText != null) _dateText.text = entry.timestamp.ToLocalTime().ToString("MMM dd, HH:mm");
+            _dateText.text = entry.timestamp.ToString("MMM dd, HH:mm");
+            
+            string resultStr = entry.result == BattleStatus.Player1Won ? "VICTORY" : 
+                              entry.result == BattleStatus.Player2Won ? "DEFEAT" : "DRAW";
+            _resultText.text = resultStr;
+            _resultText.color = entry.result == BattleStatus.Player1Won ? Color.green : 
+                               entry.result == BattleStatus.Player2Won ? Color.red : Color.yellow;
 
-            if (_resultText != null)
-            {
-                _resultText.text = entry.result.ToString();
-                _resultText.color = entry.result == BattleResult.Victory ? Color.green : 
-                                   entry.result == BattleResult.Defeat ? Color.red : Color.yellow;
-            }
-
-            if (_crownsText != null) _crownsText.text = $"{entry.playerCrowns}-{entry.opponentCrowns}";
-            if (_trophyChangeText != null)
-            {
-                _trophyChangeText.text = entry.trophyChange >= 0 ? $"+{entry.trophyChange}" : entry.trophyChange.ToString();
-                _trophyChangeText.color = entry.trophyChange >= 0 ? Color.green : Color.red;
-            }
-
-            if (_opponentText != null) _opponentText.text = $"vs {entry.opponentName}";
-            if (_modeText != null) _modeText.text = entry.battleMode;
+            _crownsText.text = $"{entry.playerCrowns} - {entry.opponentCrowns}";
+            _trophyChangeText.text = entry.trophyChange >= 0 ? $"+{entry.trophyChange}" : entry.trophyChange.ToString();
+            _trophyChangeText.color = entry.trophyChange >= 0 ? Color.green : Color.red;
+            _modeText.text = entry.battleType.ToString();
 
             if (_replayButton != null)
             {
@@ -189,5 +184,17 @@ namespace CRClone.UI.Screens
                 });
             }
         }
+    }
+
+    [Serializable]
+    public class BattleLogEntry
+    {
+        public DateTime timestamp;
+        public BattleStatus result;
+        public int playerCrowns;
+        public int opponentCrowns;
+        public int trophyChange;
+        public BattleType battleType;
+        public long replayId;
     }
 }

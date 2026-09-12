@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
-using CRClone.Core;
+using CRClone.UI.Animation;
 
 namespace CRClone.UI.Components
 {
@@ -10,47 +10,39 @@ namespace CRClone.UI.Components
         [Header("UI References")]
         [SerializeField] private Image _chestImage;
         [SerializeField] private Text _timerText;
+        [SerializeField] private Image _progressFill;
         [SerializeField] private GameObject _lockIcon;
         [SerializeField] private GameObject _readyIcon;
         [SerializeField] private GameObject _emptyState;
         [SerializeField] private Button _slotButton;
         [SerializeField] private ParticleSystem _unlockParticles;
-        [SerializeField] private AnimationCurve _bounceCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        [SerializeField] private float _bounceInterval = 2f;
+        [SerializeField] private float _bounceScale = 1.15f;
 
         [Header("Chest Sprites")]
-        [SerializeField] private Sprite _woodenChestSprite;
-        [SerializeField] private Sprite _silverChestSprite;
-        [SerializeField] private Sprite _goldenChestSprite;
-        [SerializeField] private Sprite _magicalChestSprite;
-        [SerializeField] private Sprite _giantChestSprite;
-        [SerializeField] private Sprite _legendaryChestSprite;
-        [SerializeField] private Sprite _epicChestSprite;
-        [SerializeField] private Sprite _championChestSprite;
+        [SerializeField] private Sprite[] _chestSprites;
 
         private int _slotIndex;
-        private ChestData _currentChest;
+        private ChestData _chestData;
         private Coroutine _timerCoroutine;
-        private bool _isUnlocking;
+        private Coroutine _bounceCoroutine;
+        private bool _isUnlocked;
 
         public int SlotIndex => _slotIndex;
 
-        public void Initialize(int slotIndex)
+        public void Initialize(int index)
         {
-            _slotIndex = slotIndex;
-
-            if (_slotButton != null)
-            {
-                _slotButton.onClick.AddListener(OnSlotClicked);
-            }
-
+            _slotIndex = index;
+            _slotButton?.onClick.AddListener(OnSlotClicked);
             SetEmpty();
         }
 
         public void SetChestData(ChestData chestData)
         {
-            _currentChest = chestData;
+            _chestData = chestData;
+            _isUnlocked = false;
 
-            if (chestData == null || chestData.chestTypeId <= 0)
+            if (chestData == null || chestData.chestTypeId < 0)
             {
                 SetEmpty();
                 return;
@@ -60,49 +52,28 @@ namespace CRClone.UI.Components
             _emptyState?.SetActive(false);
             _chestImage?.gameObject.SetActive(true);
 
-            UpdateChestVisual(chestData.chestTypeId);
-
-            if (chestData.unlockTime > DateTime.UtcNow)
+            if (_chestImage != null && chestData.chestTypeId < _chestSprites.Length)
             {
-                StartUnlockTimer(chestData.unlockTime);
-                _lockIcon?.SetActive(true);
-                _readyIcon?.SetActive(false);
+                _chestImage.sprite = _chestSprites[chestData.chestTypeId];
+            }
+
+            if (chestData.unlockTime <= DateTime.UtcNow)
+            {
+                OnUnlockReady();
             }
             else
             {
-                StopTimer();
-                _lockIcon?.SetActive(false);
-                _readyIcon?.SetActive(true);
-                StartBounceAnimation();
+                StartUnlockTimer(chestData.unlockTime);
             }
-        }
-
-        private void UpdateChestVisual(int chestTypeId)
-        {
-            if (_chestImage == null) return;
-
-            Sprite sprite = chestTypeId switch
-            {
-                1 => _woodenChestSprite,
-                2 => _silverChestSprite,
-                3 => _goldenChestSprite,
-                4 => _magicalChestSprite,
-                5 => _giantChestSprite,
-                6 => _legendaryChestSprite,
-                7 => _epicChestSprite,
-                8 => _championChestSprite,
-                _ => _woodenChestSprite
-            };
-
-            _chestImage.sprite = sprite;
         }
 
         private void SetEmpty()
         {
-            _currentChest = null;
-            StopTimer();
+            _chestData = null;
+            StopTimers();
             _chestImage?.gameObject.SetActive(false);
             _timerText?.gameObject.SetActive(false);
+            _progressFill?.gameObject.SetActive(false);
             _lockIcon?.SetActive(false);
             _readyIcon?.SetActive(false);
             _emptyState?.SetActive(true);
@@ -110,20 +81,35 @@ namespace CRClone.UI.Components
 
         private void StartUnlockTimer(DateTime unlockTime)
         {
-            StopTimer();
+            StopTimers();
+            _lockIcon?.SetActive(true);
+            _readyIcon?.SetActive(false);
+            _progressFill?.gameObject.SetActive(true);
+            _timerText?.gameObject.SetActive(true);
+
             _timerCoroutine = StartCoroutine(UnlockTimerRoutine(unlockTime));
         }
 
-        private System.Collections.IEnumerator UnlockTimerRoutine(DateTime unlockTime)
+        private IEnumerator UnlockTimerRoutine(DateTime unlockTime)
         {
+            DateTime startTime = unlockTime.AddHours(-3); // Assume 3 hour unlock
+            float totalDuration = (float)(unlockTime - startTime).TotalSeconds;
+
             while (DateTime.UtcNow < unlockTime)
             {
                 TimeSpan remaining = unlockTime - DateTime.UtcNow;
+                
                 if (_timerText != null)
                 {
                     _timerText.text = FormatTime(remaining);
-                    _timerText.gameObject.SetActive(true);
                 }
+
+                if (_progressFill != null)
+                {
+                    float elapsed = (float)(DateTime.UtcNow - startTime).TotalSeconds;
+                    _progressFill.fillAmount = Mathf.Clamp01(elapsed / totalDuration);
+                }
+
                 yield return new WaitForSeconds(1f);
             }
 
@@ -132,11 +118,12 @@ namespace CRClone.UI.Components
 
         private void OnUnlockReady()
         {
-            StopTimer();
-            if (_timerText != null) _timerText.gameObject.SetActive(false);
+            StopTimers();
+            _isUnlocked = true;
             _lockIcon?.SetActive(false);
             _readyIcon?.SetActive(true);
-            StartBounceAnimation();
+            _progressFill?.gameObject.SetActive(false);
+            _timerText?.gameObject.SetActive(false);
 
             if (_unlockParticles != null)
             {
@@ -144,44 +131,48 @@ namespace CRClone.UI.Components
             }
 
             UISoundPlayer.Instance?.PlayChestUnlock();
+            StartBounceAnimation();
         }
 
         private void StartBounceAnimation()
         {
             if (AccessibilityManager.Instance?.ReduceMotion == true) return;
-
-            StartCoroutine(BounceAnimation());
+            
+            _bounceCoroutine = StartCoroutine(BounceAnimation());
         }
 
-        private System.Collections.IEnumerator BounceAnimation()
+        private IEnumerator BounceAnimation()
         {
-            Vector3 originalScale = transform.localScale;
-            Vector3 bounceScale = originalScale * 1.1f;
-
-            while (_currentChest != null && _currentChest.unlockTime <= DateTime.UtcNow)
+            while (_isUnlocked)
             {
-                yield return transform.ScaleTo(bounceScale, 0.8f, _bounceCurve);
-                yield return transform.ScaleTo(originalScale, 0.8f, _bounceCurve);
-                yield return new WaitForSeconds(2f);
-            }
+                yield return new WaitForSeconds(_bounceInterval);
+                
+                if (!_isUnlocked) break;
 
-            transform.localScale = originalScale;
+                yield return transform.ScaleTo(Vector3.one * _bounceScale, 0.2f, AnimationCurve.EaseInOut(0, 0, 1, 1), null, true);
+                yield return transform.ScaleTo(Vector3.one, 0.2f, AnimationCurve.EaseInOut(0, 0, 1, 1), null, true);
+            }
         }
 
-        private void StopTimer()
+        private void StopTimers()
         {
             if (_timerCoroutine != null)
             {
                 StopCoroutine(_timerCoroutine);
                 _timerCoroutine = null;
             }
+            if (_bounceCoroutine != null)
+            {
+                StopCoroutine(_bounceCoroutine);
+                _bounceCoroutine = null;
+            }
         }
 
         private void OnSlotClicked()
         {
-            if (_currentChest == null) return;
+            if (_chestData == null) return;
 
-            if (_currentChest.unlockTime <= DateTime.UtcNow)
+            if (_isUnlocked)
             {
                 OpenChest();
             }
@@ -193,14 +184,18 @@ namespace CRClone.UI.Components
 
         private void OpenChest()
         {
-            _isUnlocking = true;
+            _isUnlocked = false;
+            StopTimers();
+
             UISoundPlayer.Instance?.PlayChestUnlock();
 
-            UIManager.Instance?.ShowChestUnlock(_currentChest.chestTypeId, _currentChest.rewards);
+            var chestUnlockScreen = UIManager.Instance?.ShowScreen(ScreenType.ChestUnlock);
+            // ChestUnlockScreen would handle the animation and rewards
         }
 
         private void ShowSpeedUpOption()
         {
+            var modal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/SpeedUpChestModal"));
         }
 
         private string FormatTime(TimeSpan time)
@@ -213,14 +208,9 @@ namespace CRClone.UI.Components
                 return $"{time.Seconds}s";
         }
 
-        private void OnDisable()
-        {
-            StopTimer();
-        }
-
         private void OnDestroy()
         {
-            StopTimer();
+            StopTimers();
         }
     }
 
@@ -230,6 +220,5 @@ namespace CRClone.UI.Components
         public int chestTypeId;
         public DateTime unlockTime;
         public System.Collections.Generic.List<EventBus.ChestReward> rewards;
-        public bool isUnlocking;
     }
 }

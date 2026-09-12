@@ -1,6 +1,6 @@
 using System;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using CRClone.Core;
 using CRClone.Data;
 using CRClone.UI.Animation;
@@ -194,7 +194,7 @@ namespace CRClone.UI.Animation
             _handBar?.ShowInsufficientElixir(_selectedCardIndex);
         }
 
-        private System.Collections.IEnumerator ShakeInvalidIndicator()
+        private IEnumerator ShakeInvalidIndicator()
         {
             ShowInvalidIndicator();
 
@@ -225,7 +225,7 @@ namespace CRClone.UI.Animation
             var config = Services.Get<GameManager>().BattleSim?._config;
             if (config == null) return false;
 
-            float deployZoneY = GameConstants.DEPLOY_ZONE_Y_P1_MAX;
+            float deployZoneY = CRClone.Core.GameConstants.DEPLOY_ZONE_Y_P1_MAX;
 
             if (position.y > deployZoneY)
             {

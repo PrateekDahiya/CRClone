@@ -231,5 +231,38 @@ namespace CRClone.Battle.UI
             gameObject.SetActive(true);
             UpdateDisplay();
         }
+
+        public TowerType GetTowerType()
+        {
+            return _tower?.Type ?? TowerType.King;
+        }
+
+        public void PlayKingActivation()
+        {
+            if (AccessibilityManager.Instance?.ReduceMotion == true) return;
+
+            StartCoroutine(KingActivationCoroutine());
+        }
+
+        private System.Collections.IEnumerator KingActivationCoroutine()
+        {
+            // Flash gold color and pulse
+            Color originalColor = _healthFill.color;
+            Color kingColor = new Color(1f, 0.85f, 0f);
+
+            for (int i = 0; i < 3; i++)
+            {
+                _healthFill.color = kingColor;
+                yield return new WaitForSeconds(0.1f);
+                _healthFill.color = originalColor;
+                yield return new WaitForSeconds(0.1f);
+            }
+
+            // Show king crown icon
+            if (_kingCrownIcon != null)
+            {
+                _kingCrownIcon.SetActive(true);
+            }
+        }
     }
 }

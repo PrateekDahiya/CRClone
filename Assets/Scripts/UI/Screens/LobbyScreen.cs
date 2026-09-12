@@ -8,6 +8,14 @@ namespace CRClone.UI.Screens
 {
     public class LobbyScreen : MonoBehaviour
     {
+        [Header("Top Bar")]
+        [SerializeField] private Text _playerNameText;
+        [SerializeField] private Text _trophyText;
+        [SerializeField] private Text _gemText;
+        [SerializeField] private Text _goldText;
+        [SerializeField] private Button _settingsButton;
+        [SerializeField] private Button _backButton;
+
         [Header("Battle Mode Buttons")]
         [SerializeField] private Button _battle1v1Button;
         [SerializeField] private Button _battle2v2Button;
@@ -15,19 +23,13 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _friendlyButton;
         [SerializeField] private Button _practiceButton;
 
-        [Header("Deck Builder Shortcut")]
-        [SerializeField] private Button _deckBuilderButton;
-
         [Header("Chest Slots")]
         [SerializeField] private Transform _chestSlotsContainer;
         [SerializeField] private GameObject _chestSlotPrefab;
         [SerializeField] private int _chestSlotCount = 4;
 
-        [Header("Player Info")]
-        [SerializeField] private Text _playerNameText;
-        [SerializeField] private Text _trophiesText;
-        [SerializeField] private Text _gemsText;
-        [SerializeField] private Text _goldText;
+        [Header("Deck Builder Shortcut")]
+        [SerializeField] private Button _deckBuilderButton;
 
         [Header("Season Info")]
         [SerializeField] private Text _seasonNameText;
@@ -37,17 +39,30 @@ namespace CRClone.UI.Screens
         private ChestSlotUI[] _chestSlots;
         private bool _isInitialized;
 
-        public void Initialize()
+        private void Awake()
+        {
+            InitializeComponents();
+        }
+
+        private void InitializeComponents()
         {
             if (_isInitialized) return;
+
+            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
 
             SetupBattleModeButtons();
             SetupDeckBuilderButton();
             SetupChestSlots();
-            UpdatePlayerInfo();
-            UpdateSeasonInfo();
 
             _isInitialized = true;
+        }
+
+        private void OnEnable()
+        {
+            UpdatePlayerInfo();
+            UpdateChestSlots();
+            UpdateSeasonInfo();
         }
 
         private void SetupBattleModeButtons()
@@ -73,7 +88,6 @@ namespace CRClone.UI.Screens
             if (_chestSlotsContainer == null || _chestSlotPrefab == null) return;
 
             _chestSlots = new ChestSlotUI[_chestSlotCount];
-
             for (int i = 0; i < _chestSlotCount; i++)
             {
                 var slotGO = Instantiate(_chestSlotPrefab, _chestSlotsContainer);
@@ -83,36 +97,29 @@ namespace CRClone.UI.Screens
                     _chestSlots[i].Initialize(i);
                 }
             }
-
-            UpdateChestSlots();
         }
 
         private void StartMatchmaking(BattleType type)
         {
             UISoundPlayer.Instance?.PlayButtonClick();
             Services.Get<NetworkClient>().Send(new NetworkClient.MatchmakingRequest { battleType = type });
-            Services.Get<GameManager>().ChangeState(GameState.Matchmaking);
         }
 
         private void UpdatePlayerInfo()
         {
-            var playerData = Services.Get<GameManager>()?.LocalPlayer;
+            var playerData = Services.Get<GameManager>().LocalPlayer;
             if (playerData != null)
             {
                 if (_playerNameText != null) _playerNameText.text = playerData.playerName;
-                if (_trophiesText != null) _trophiesText.text = playerData.trophies.ToString("N0");
-                if (_gemsText != null) _gemsText.text = playerData.gems.ToString("N0");
+                if (_trophyText != null) _trophyText.text = playerData.trophies.ToString("N0");
+                if (_gemText != null) _gemText.text = playerData.gems.ToString("N0");
                 if (_goldText != null) _goldText.text = playerData.gold.ToString("N0");
             }
         }
 
-        private void UpdateSeasonInfo()
-        {
-        }
-
         private void UpdateChestSlots()
         {
-            var playerData = Services.Get<GameManager>()?.LocalPlayer;
+            var playerData = Services.Get<GameManager>().LocalPlayer;
             if (playerData?.chestSlots != null && _chestSlots != null)
             {
                 for (int i = 0; i < _chestSlots.Length && i < playerData.chestSlots.Count; i++)
@@ -122,13 +129,11 @@ namespace CRClone.UI.Screens
             }
         }
 
-        private void OnEnable()
+        private void UpdateSeasonInfo()
         {
-            if (_isInitialized)
-            {
-                UpdatePlayerInfo();
-                UpdateChestSlots();
-            }
+            if (_seasonNameText != null) _seasonNameText.text = "Season 1: Clash Royale Clone";
+            if (_seasonProgressText != null) _seasonProgressText.text = "14 days remaining";
+            if (_seasonProgressBar != null) _seasonProgressBar.fillAmount = 0.3f;
         }
     }
 }

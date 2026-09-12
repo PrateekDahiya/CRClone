@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
-using CRClone.UI.Animation;
 
 namespace CRClone.UI.Screens
 {
@@ -13,14 +12,14 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _audioTab;
         [SerializeField] private Button _gameplayTab;
         [SerializeField] private Button _privacyTab;
-        [SerializeField] private Button _notificationsTab;
+        [SerializeField] private Button _accessibilityTab;
 
         [Header("Tab Content")]
         [SerializeField] private Transform _graphicsContent;
         [SerializeField] private Transform _audioContent;
         [SerializeField] private Transform _gameplayContent;
         [SerializeField] private Transform _privacyContent;
-        [SerializeField] private Transform _notificationsContent;
+        [SerializeField] private Transform _accessibilityContent;
 
         [Header("Graphics Settings")]
         [SerializeField] private Dropdown _graphicsQualityDropdown;
@@ -43,29 +42,23 @@ namespace CRClone.UI.Screens
         [SerializeField] private Toggle _autoTargetToggle;
         [SerializeField] private Toggle _leftHandedToggle;
         [SerializeField] private Toggle _cameraShakeToggle;
-        [SerializeField] private Dropdown _damageNumbersDropdown;
+        [SerializeField] private Toggle _damageNumbersToggle;
 
-        [Header("Accessibility")]
-        [SerializeField] private Toggle _highContrastToggle;
-        [SerializeField] private Toggle _reduceMotionToggle;
-        [SerializeField] private Slider _textScaleSlider;
-        [SerializeField] private Dropdown _colorBlindDropdown;
-
-        [Header("Privacy")]
+        [Header("Privacy Settings")]
         [SerializeField] private Toggle _showProfileToggle;
         [SerializeField] private Toggle _showOnlineStatusToggle;
         [SerializeField] private Toggle _allowFriendRequestsToggle;
         [SerializeField] private Toggle _allowClanInvitesToggle;
         [SerializeField] private Button _deleteAccountButton;
 
-        [Header("Notifications")]
-        [SerializeField] private Toggle _pushNotificationsToggle;
-        [SerializeField] private Toggle _battleNotificationsToggle;
-        [SerializeField] private Toggle _clanNotificationsToggle;
-        [SerializeField] private Toggle _shopNotificationsToggle;
-        [SerializeField] private Toggle _eventNotificationsToggle;
+        [Header("Accessibility Settings")]
+        [SerializeField] private Toggle _highContrastToggle;
+        [SerializeField] private Toggle _reduceMotionToggle;
+        [SerializeField] private Slider _textScaleSlider;
+        [SerializeField] private Dropdown _colorBlindDropdown;
+        [SerializeField] private Button _resetAccessibilityButton;
 
-        [Header("Actions")]
+        [Header("Action Buttons")]
         [SerializeField] private Button _backButton;
         [SerializeField] private Button _resetToDefaultsButton;
 
@@ -77,49 +70,213 @@ namespace CRClone.UI.Screens
             Audio,
             Gameplay,
             Privacy,
-            Notifications
+            Accessibility
         }
 
-        public void Initialize()
+        private void Awake()
+        {
+            InitializeComponents();
+        }
+
+        private void InitializeComponents()
         {
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
             _resetToDefaultsButton?.onClick.AddListener(ResetToDefaults);
 
-            SetupTabs();
+            _graphicsTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Graphics));
+            _audioTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Audio));
+            _gameplayTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Gameplay));
+            _privacyTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Privacy));
+            _accessibilityTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Accessibility));
+
+            SetupGraphicsSettings();
+            SetupAudioSettings();
+            SetupGameplaySettings();
+            SetupPrivacySettings();
+            SetupAccessibilitySettings();
+
             LoadSettings();
-            BindControls();
-            ShowTab(SettingsTab.Graphics);
+            SwitchTab(SettingsTab.Graphics);
         }
 
-        private void SetupTabs()
+        private void SetupGraphicsSettings()
         {
-            _graphicsTab?.onClick.AddListener(() => ShowTab(SettingsTab.Graphics));
-            _audioTab?.onClick.AddListener(() => ShowTab(SettingsTab.Audio));
-            _gameplayTab?.onClick.AddListener(() => ShowTab(SettingsTab.Gameplay));
-            _privacyTab?.onClick.AddListener(() => ShowTab(SettingsTab.Privacy));
-            _notificationsTab?.onClick.AddListener(() => ShowTab(SettingsTab.Notifications));
+            if (_graphicsQualityDropdown != null)
+            {
+                _graphicsQualityDropdown.ClearOptions();
+                _graphicsQualityDropdown.AddOptions(new System.Collections.Generic.List<string> 
+                { "Low", "Medium", "High", "Ultra" });
+                _graphicsQualityDropdown.onValueChanged.AddListener(OnGraphicsQualityChanged);
+            }
+
+            if (_fpsCapDropdown != null)
+            {
+                _fpsCapDropdown.ClearOptions();
+                _fpsCapDropdown.AddOptions(new System.Collections.Generic.List<string> 
+                { "30 FPS", "60 FPS", "120 FPS", "Unlimited" });
+                _fpsCapDropdown.onValueChanged.AddListener(OnFpsCapChanged);
+            }
+
+            if (_vSyncToggle != null)
+            {
+                _vSyncToggle.onValueChanged.AddListener(OnVSyncChanged);
+            }
+
+            if (_resolutionDropdown != null)
+            {
+                _resolutionDropdown.ClearOptions();
+                var resolutions = Screen.resolutions;
+                var options = new System.Collections.Generic.List<string>();
+                foreach (var res in resolutions)
+                {
+                    options.Add($"{res.width}x{res.height} @{res.refreshRate}Hz");
+                }
+                if (options.Count == 0) options.Add("1920x1080 @60Hz");
+                _resolutionDropdown.AddOptions(options);
+                _resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
+            }
+
+            if (_fullscreenDropdown != null)
+            {
+                _fullscreenDropdown.ClearOptions();
+                _fullscreenDropdown.AddOptions(new System.Collections.Generic.List<string> 
+                { "Windowed", "Borderless", "Fullscreen" });
+                _fullscreenDropdown.onValueChanged.AddListener(OnFullscreenChanged);
+            }
         }
 
-        private void ShowTab(SettingsTab tab)
+        private void SetupAudioSettings()
+        {
+            if (_masterVolumeSlider != null)
+            {
+                _masterVolumeSlider.onValueChanged.AddListener(OnMasterVolumeChanged);
+            }
+            if (_musicVolumeSlider != null)
+            {
+                _musicVolumeSlider.onValueChanged.AddListener(OnMusicVolumeChanged);
+            }
+            if (_sfxVolumeSlider != null)
+            {
+                _sfxVolumeSlider.onValueChanged.AddListener(OnSfxVolumeChanged);
+            }
+            if (_voiceVolumeSlider != null)
+            {
+                _voiceVolumeSlider.onValueChanged.AddListener(OnVoiceVolumeChanged);
+            }
+            if (_muteToggle != null)
+            {
+                _muteToggle.onValueChanged.AddListener(OnMuteChanged);
+            }
+            if (_muteOnFocusLossToggle != null)
+            {
+                _muteOnFocusLossToggle.onValueChanged.AddListener(OnMuteOnFocusLossChanged);
+            }
+        }
+
+        private void SetupGameplaySettings()
+        {
+            if (_deployModeDropdown != null)
+            {
+                _deployModeDropdown.ClearOptions();
+                _deployModeDropdown.AddOptions(new System.Collections.Generic.List<string> 
+                { "Tap to Place", "Drag to Place", "Both" });
+                _deployModeDropdown.onValueChanged.AddListener(OnDeployModeChanged);
+            }
+
+            if (_spellAimingDropdown != null)
+            {
+                _spellAimingDropdown.ClearOptions();
+                _spellAimingDropdown.AddOptions(new System.Collections.Generic.List<string> 
+                { "Cursor", "Drag", "Hybrid" });
+                _spellAimingDropdown.onValueChanged.AddListener(OnSpellAimingChanged);
+            }
+
+            if (_autoTargetToggle != null)
+            {
+                _autoTargetToggle.onValueChanged.AddListener(OnAutoTargetChanged);
+            }
+
+            if (_leftHandedToggle != null)
+            {
+                _leftHandedToggle.onValueChanged.AddListener(OnLeftHandedChanged);
+            }
+
+            if (_cameraShakeToggle != null)
+            {
+                _cameraShakeToggle.onValueChanged.AddListener(OnCameraShakeChanged);
+            }
+
+            if (_damageNumbersToggle != null)
+            {
+                _damageNumbersToggle.onValueChanged.AddListener(OnDamageNumbersChanged);
+            }
+        }
+
+        private void SetupPrivacySettings()
+        {
+            if (_showProfileToggle != null)
+            {
+                _showProfileToggle.onValueChanged.AddListener(OnShowProfileChanged);
+            }
+            if (_showOnlineStatusToggle != null)
+            {
+                _showOnlineStatusToggle.onValueChanged.AddListener(OnShowOnlineStatusChanged);
+            }
+            if (_allowFriendRequestsToggle != null)
+            {
+                _allowFriendRequestsToggle.onValueChanged.AddListener(OnAllowFriendRequestsChanged);
+            }
+            if (_allowClanInvitesToggle != null)
+            {
+                _allowClanInvitesToggle.onValueChanged.AddListener(OnAllowClanInvitesChanged);
+            }
+            if (_deleteAccountButton != null)
+            {
+                _deleteAccountButton.onClick.AddListener(OnDeleteAccount);
+            }
+        }
+
+        private void SetupAccessibilitySettings()
+        {
+            if (_highContrastToggle != null)
+            {
+                _highContrastToggle.onValueChanged.AddListener(OnHighContrastChanged);
+            }
+            if (_reduceMotionToggle != null)
+            {
+                _reduceMotionToggle.onValueChanged.AddListener(OnReduceMotionChanged);
+            }
+            if (_textScaleSlider != null)
+            {
+                _textScaleSlider.onValueChanged.AddListener(OnTextScaleChanged);
+            }
+            if (_colorBlindDropdown != null)
+            {
+                _colorBlindDropdown.ClearOptions();
+                _colorBlindDropdown.AddOptions(new System.Collections.Generic.List<string> 
+                { "None", "Protanopia", "Deuteranopia", "Tritanopia" });
+                _colorBlindDropdown.onValueChanged.AddListener(OnColorBlindChanged);
+            }
+            if (_resetAccessibilityButton != null)
+            {
+                _resetAccessibilityButton.onClick.AddListener(ResetAccessibility);
+            }
+        }
+
+        private void SwitchTab(SettingsTab tab)
         {
             _currentTab = tab;
-
-            _graphicsContent?.gameObject.SetActive(tab == SettingsTab.Graphics);
-            _audioContent?.gameObject.SetActive(tab == SettingsTab.Audio);
-            _gameplayContent?.gameObject.SetActive(tab == SettingsTab.Gameplay);
-            _privacyContent?.gameObject.SetActive(tab == SettingsTab.Privacy);
-            _notificationsContent?.gameObject.SetActive(tab == SettingsTab.Notifications);
-
-            UpdateTabButtons();
+            UpdateTabVisuals();
+            ShowTabContent(tab);
         }
 
-        private void UpdateTabButtons()
+        private void UpdateTabVisuals()
         {
             SetTabSelected(_graphicsTab, _currentTab == SettingsTab.Graphics);
             SetTabSelected(_audioTab, _currentTab == SettingsTab.Audio);
             SetTabSelected(_gameplayTab, _currentTab == SettingsTab.Gameplay);
             SetTabSelected(_privacyTab, _currentTab == SettingsTab.Privacy);
-            SetTabSelected(_notificationsTab, _currentTab == SettingsTab.Notifications);
+            SetTabSelected(_accessibilityTab, _currentTab == SettingsTab.Accessibility);
         }
 
         private void SetTabSelected(Button button, bool selected)
@@ -130,319 +287,319 @@ namespace CRClone.UI.Screens
             button.colors = colors;
         }
 
+        private void ShowTabContent(SettingsTab tab)
+        {
+            _graphicsContent?.gameObject.SetActive(tab == SettingsTab.Graphics);
+            _audioContent?.gameObject.SetActive(tab == SettingsTab.Audio);
+            _gameplayContent?.gameObject.SetActive(tab == SettingsTab.Gameplay);
+            _privacyContent?.gameObject.SetActive(tab == SettingsTab.Privacy);
+            _accessibilityContent?.gameObject.SetActive(tab == SettingsTab.Accessibility);
+        }
+
         private void LoadSettings()
         {
-            if (_graphicsQualityDropdown != null)
-            {
-                _graphicsQualityDropdown.value = PlayerPrefs.GetInt("graphics_quality", 2);
-            }
-            if (_fpsCapDropdown != null)
-            {
-                _fpsCapDropdown.value = PlayerPrefs.GetInt("fps_cap", 1);
-            }
-            if (_vSyncToggle != null)
-            {
-                _vSyncToggle.isOn = PlayerPrefs.GetInt("vsync", 1) == 1;
-            }
-            if (_resolutionDropdown != null)
-            {
-                _resolutionDropdown.value = PlayerPrefs.GetInt("resolution", 0);
-            }
-            if (_fullscreenDropdown != null)
-            {
-                _fullscreenDropdown.value = PlayerPrefs.GetInt("fullscreen", 1);
-            }
+            // Graphics
+            _graphicsQualityDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("graphics_quality", 2));
+            _fpsCapDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("fps_cap", 1));
+            _vSyncToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("vsync", 1) == 1);
+            _resolutionDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("resolution", 0));
+            _fullscreenDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("fullscreen", 1));
 
-            if (_masterVolumeSlider != null)
-            {
-                _masterVolumeSlider.value = PlayerPrefs.GetFloat("audio_master", 1f);
-            }
-            if (_musicVolumeSlider != null)
-            {
-                _musicVolumeSlider.value = PlayerPrefs.GetFloat("audio_music", 1f);
-            }
-            if (_sfxVolumeSlider != null)
-            {
-                _sfxVolumeSlider.value = PlayerPrefs.GetFloat("audio_sfx", 1f);
-            }
-            if (_voiceVolumeSlider != null)
-            {
-                _voiceVolumeSlider.value = PlayerPrefs.GetFloat("audio_voice", 1f);
-            }
-            if (_muteToggle != null)
-            {
-                _muteToggle.isOn = PlayerPrefs.GetInt("audio_mute", 0) == 1;
-            }
-            if (_muteOnFocusLossToggle != null)
-            {
-                _muteOnFocusLossToggle.isOn = PlayerPrefs.GetInt("audio_mute_focus", 1) == 1;
-            }
+            // Audio
+            _masterVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("master_volume", 1f));
+            _musicVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("music_volume", 1f));
+            _sfxVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("sfx_volume", 1f));
+            _voiceVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("voice_volume", 1f));
+            _muteToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("mute", 0) == 1);
+            _muteOnFocusLossToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("mute_focus_loss", 1) == 1);
 
-            if (_deployModeDropdown != null)
-            {
-                _deployModeDropdown.value = PlayerPrefs.GetInt("deploy_mode", 0);
-            }
-            if (_spellAimingDropdown != null)
-            {
-                _spellAimingDropdown.value = PlayerPrefs.GetInt("spell_aiming", 0);
-            }
-            if (_autoTargetToggle != null)
-            {
-                _autoTargetToggle.isOn = PlayerPrefs.GetInt("auto_target", 0) == 1;
-            }
-            if (_leftHandedToggle != null)
-            {
-                _leftHandedToggle.isOn = PlayerPrefs.GetInt("left_handed", 0) == 1;
-            }
-            if (_cameraShakeToggle != null)
-            {
-                _cameraShakeToggle.isOn = PlayerPrefs.GetInt("camera_shake", 1) == 1;
-            }
-            if (_damageNumbersDropdown != null)
-            {
-                _damageNumbersDropdown.value = PlayerPrefs.GetInt("damage_numbers", 0);
-            }
+            // Gameplay
+            _deployModeDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("deploy_mode", 2));
+            _spellAimingDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("spell_aiming", 2));
+            _autoTargetToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("auto_target", 1) == 1);
+            _leftHandedToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("left_handed", 0) == 1);
+            _cameraShakeToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("camera_shake", 1) == 1);
+            _damageNumbersToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("damage_numbers", 1) == 1);
 
-            if (_highContrastToggle != null)
-            {
-                _highContrastToggle.isOn = PlayerPrefs.GetInt("accessibility_high_contrast", 0) == 1;
-            }
-            if (_reduceMotionToggle != null)
-            {
-                _reduceMotionToggle.isOn = PlayerPrefs.GetInt("accessibility_reduce_motion", 0) == 1;
-            }
-            if (_textScaleSlider != null)
-            {
-                _textScaleSlider.value = PlayerPrefs.GetFloat("accessibility_text_scale", 1f);
-            }
-            if (_colorBlindDropdown != null)
-            {
-                _colorBlindDropdown.value = PlayerPrefs.GetInt("accessibility_color_blind", 0);
-            }
+            // Privacy
+            _showProfileToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("show_profile", 1) == 1);
+            _showOnlineStatusToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("show_online", 1) == 1);
+            _allowFriendRequestsToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("allow_friends", 1) == 1);
+            _allowClanInvitesToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("allow_clan_invites", 1) == 1);
 
-            if (_showProfileToggle != null)
-            {
-                _showProfileToggle.isOn = PlayerPrefs.GetInt("privacy_show_profile", 1) == 1;
-            }
-            if (_showOnlineStatusToggle != null)
-            {
-                _showOnlineStatusToggle.isOn = PlayerPrefs.GetInt("privacy_show_online", 1) == 1;
-            }
-            if (_allowFriendRequestsToggle != null)
-            {
-                _allowFriendRequestsToggle.isOn = PlayerPrefs.GetInt("privacy_friends", 1) == 1;
-            }
-            if (_allowClanInvitesToggle != null)
-            {
-                _allowClanInvitesToggle.isOn = PlayerPrefs.GetInt("privacy_clan_invites", 1) == 1;
-            }
+            // Accessibility
+            _highContrastToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("high_contrast", 0) == 1);
+            _reduceMotionToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("reduce_motion", 0) == 1);
+            _textScaleSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("text_scale", 1f));
+            _colorBlindDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("color_blind", 0));
 
-            if (_pushNotificationsToggle != null)
-            {
-                _pushNotificationsToggle.isOn = PlayerPrefs.GetInt("notif_push", 1) == 1;
-            }
-            if (_battleNotificationsToggle != null)
-            {
-                _battleNotificationsToggle.isOn = PlayerPrefs.GetInt("notif_battle", 1) == 1;
-            }
-            if (_clanNotificationsToggle != null)
-            {
-                _clanNotificationsToggle.isOn = PlayerPrefs.GetInt("notif_clan", 1) == 1;
-            }
-            if (_shopNotificationsToggle != null)
-            {
-                _shopNotificationsToggle.isOn = PlayerPrefs.GetInt("notif_shop", 1) == 1;
-            }
-            if (_eventNotificationsToggle != null)
-            {
-                _eventNotificationsToggle.isOn = PlayerPrefs.GetInt("notif_events", 1) == 1;
-            }
+            ApplySettings();
         }
 
-        private void BindControls()
+        private void ApplySettings()
         {
-            if (_graphicsQualityDropdown != null)
-            {
-                _graphicsQualityDropdown.onValueChanged.AddListener(OnGraphicsQualityChanged);
-            }
-            if (_fpsCapDropdown != null)
-            {
-                _fpsCapDropdown.onValueChanged.AddListener(OnFpsCapChanged);
-            }
-            if (_vSyncToggle != null)
-            {
-                _vSyncToggle.onValueChanged.AddListener(OnVSyncChanged);
-            }
-            if (_resolutionDropdown != null)
-            {
-                _resolutionDropdown.onValueChanged.AddListener(OnResolutionChanged);
-            }
-            if (_fullscreenDropdown != null)
-            {
-                _fullscreenDropdown.onValueChanged.AddListener(OnFullscreenChanged);
-            }
+            ApplyGraphicsSettings();
+            ApplyAudioSettings();
+            ApplyGameplaySettings();
+            ApplyPrivacySettings();
+            ApplyAccessibilitySettings();
+        }
 
-            if (_masterVolumeSlider != null)
-            {
-                _masterVolumeSlider.onValueChanged.AddListener(UIAudioManager.Instance?.SetMasterVolume);
-            }
-            if (_musicVolumeSlider != null)
-            {
-                _musicVolumeSlider.onValueChanged.AddListener(UIAudioManager.Instance?.SetMusicVolume);
-            }
-            if (_sfxVolumeSlider != null)
-            {
-                _sfxVolumeSlider.onValueChanged.AddListener(UIAudioManager.Instance?.SetSFXVolume);
-            }
-            if (_voiceVolumeSlider != null)
-            {
-                _voiceVolumeSlider.onValueChanged.AddListener(UIAudioManager.Instance?.SetVoiceVolume);
-            }
-            if (_muteToggle != null)
-            {
-                _muteToggle.onValueChanged.AddListener(UIAudioManager.Instance?.SetMute);
-            }
-            if (_muteOnFocusLossToggle != null)
-            {
-                _muteOnFocusLossToggle.onValueChanged.AddListener(UIAudioManager.Instance?.SetMuteOnFocusLoss);
-            }
+        private void ApplyGraphicsSettings()
+        {
+            QualitySettings.SetQualityLevel(_graphicsQualityDropdown?.value ?? 2);
+            
+            int[] fpsValues = { 30, 60, 120, -1 };
+            Application.targetFrameRate = fpsValues[_fpsCapDropdown?.value ?? 1];
+            
+            QualitySettings.vSyncCount = _vSyncToggle?.isOn == true ? 1 : 0;
 
-            if (_deployModeDropdown != null)
-            {
-                _deployModeDropdown.onValueChanged.AddListener(OnDeployModeChanged);
-            }
-            if (_spellAimingDropdown != null)
-            {
-                _spellAimingDropdown.onValueChanged.AddListener(OnSpellAimingChanged);
-            }
-            if (_autoTargetToggle != null)
-            {
-                _autoTargetToggle.onValueChanged.AddListener(OnAutoTargetChanged);
-            }
-            if (_leftHandedToggle != null)
-            {
-                _leftHandedToggle.onValueChanged.AddListener(OnLeftHandedChanged);
-            }
-            if (_cameraShakeToggle != null)
-            {
-                _cameraShakeToggle.onValueChanged.AddListener(OnCameraShakeChanged);
-            }
-            if (_damageNumbersDropdown != null)
-            {
-                _damageNumbersDropdown.onValueChanged.AddListener(OnDamageNumbersChanged);
-            }
+            FullScreenMode[] modes = { FullScreenMode.Windowed, FullScreenMode.FullScreenWindow, FullScreenMode.ExclusiveFullScreen };
+            Screen.fullScreenMode = modes[_fullscreenDropdown?.value ?? 1];
+        }
 
-            if (_highContrastToggle != null)
+        private void ApplyAudioSettings()
+        {
+            if (AudioListener.volume != (_masterVolumeSlider?.value ?? 1f))
             {
-                _highContrastToggle.onValueChanged.AddListener(AccessibilityManager.Instance?.SetHighContrastMode);
+                AudioListener.volume = _masterVolumeSlider?.value ?? 1f;
             }
-            if (_reduceMotionToggle != null)
+            
+            if (_muteToggle?.isOn == true)
             {
-                _reduceMotionToggle.onValueChanged.AddListener(AccessibilityManager.Instance?.SetReduceMotion);
-            }
-            if (_textScaleSlider != null)
-            {
-                _textScaleSlider.onValueChanged.AddListener(AccessibilityManager.Instance?.SetTextScale);
-            }
-            if (_colorBlindDropdown != null)
-            {
-                _colorBlindDropdown.onValueChanged.AddListener(OnColorBlindChanged);
+                AudioListener.volume = 0f;
             }
         }
 
+        private void ApplyGameplaySettings()
+        {
+            // Settings applied via InputManager and other systems
+        }
+
+        private void ApplyPrivacySettings()
+        {
+            // Sent to server
+        }
+
+        private void ApplyAccessibilitySettings()
+        {
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.SetHighContrastMode(_highContrastToggle?.isOn ?? false);
+                AccessibilityManager.Instance.SetReduceMotion(_reduceMotionToggle?.isOn ?? false);
+                AccessibilityManager.Instance.SetTextScale(_textScaleSlider?.value ?? 1f);
+                AccessibilityManager.Instance.SetColorBlindMode((AccessibilityManager.ColorBlindMode)(_colorBlindDropdown?.value ?? 0));
+            }
+        }
+
+        // Event Handlers
         private void OnGraphicsQualityChanged(int value)
         {
             PlayerPrefs.SetInt("graphics_quality", value);
             QualitySettings.SetQualityLevel(value);
-            PlayerPrefs.Save();
         }
 
         private void OnFpsCapChanged(int value)
         {
-            int[] fpsValues = { 30, 60, 120, -1 };
-            int targetFps = fpsValues[value];
-            Application.targetFrameRate = targetFps;
             PlayerPrefs.SetInt("fps_cap", value);
-            PlayerPrefs.Save();
+            int[] fpsValues = { 30, 60, 120, -1 };
+            Application.targetFrameRate = fpsValues[value];
         }
 
         private void OnVSyncChanged(bool value)
         {
-            QualitySettings.vSyncCount = value ? 1 : 0;
             PlayerPrefs.SetInt("vsync", value ? 1 : 0);
-            PlayerPrefs.Save();
+            QualitySettings.vSyncCount = value ? 1 : 0;
         }
 
         private void OnResolutionChanged(int value)
         {
             PlayerPrefs.SetInt("resolution", value);
-            PlayerPrefs.Save();
         }
 
         private void OnFullscreenChanged(int value)
         {
-            FullScreenMode mode = value switch
-            {
-                0 => FullScreenMode.Windowed,
-                1 => FullScreenMode.FullScreenWindow,
-                2 => FullScreenMode.ExclusiveFullScreen,
-                _ => FullScreenMode.FullScreenWindow
-            };
-            Screen.fullScreenMode = mode;
             PlayerPrefs.SetInt("fullscreen", value);
-            PlayerPrefs.Save();
+            FullScreenMode[] modes = { FullScreenMode.Windowed, FullScreenMode.FullScreenWindow, FullScreenMode.ExclusiveFullScreen };
+            Screen.fullScreenMode = modes[value];
+        }
+
+        private void OnMasterVolumeChanged(float value)
+        {
+            PlayerPrefs.SetFloat("master_volume", value);
+            AudioListener.volume = value;
+        }
+
+        private void OnMusicVolumeChanged(float value)
+        {
+            PlayerPrefs.SetFloat("music_volume", value);
+        }
+
+        private void OnSfxVolumeChanged(float value)
+        {
+            PlayerPrefs.SetFloat("sfx_volume", value);
+        }
+
+        private void OnVoiceVolumeChanged(float value)
+        {
+            PlayerPrefs.SetFloat("voice_volume", value);
+        }
+
+        private void OnMuteChanged(bool value)
+        {
+            PlayerPrefs.SetInt("mute", value ? 1 : 0);
+            AudioListener.volume = value ? 0f : (_masterVolumeSlider?.value ?? 1f);
+        }
+
+        private void OnMuteOnFocusLossChanged(bool value)
+        {
+            PlayerPrefs.SetInt("mute_focus_loss", value ? 1 : 0);
         }
 
         private void OnDeployModeChanged(int value)
         {
             PlayerPrefs.SetInt("deploy_mode", value);
-            PlayerPrefs.Save();
-            InputManager.Instance?.SetDeployMode((InputManager.DeployMode)value);
+            if (InputManager.Instance != null)
+            {
+                InputManager.Instance.SetDeployMode((InputManager.DeployMode)value);
+            }
         }
 
         private void OnSpellAimingChanged(int value)
         {
             PlayerPrefs.SetInt("spell_aiming", value);
-            PlayerPrefs.Save();
         }
 
         private void OnAutoTargetChanged(bool value)
         {
             PlayerPrefs.SetInt("auto_target", value ? 1 : 0);
-            PlayerPrefs.Save();
         }
 
         private void OnLeftHandedChanged(bool value)
         {
             PlayerPrefs.SetInt("left_handed", value ? 1 : 0);
-            PlayerPrefs.Save();
         }
 
         private void OnCameraShakeChanged(bool value)
         {
             PlayerPrefs.SetInt("camera_shake", value ? 1 : 0);
-            PlayerPrefs.Save();
         }
 
-        private void OnDamageNumbersChanged(int value)
+        private void OnDamageNumbersChanged(bool value)
         {
-            PlayerPrefs.SetInt("damage_numbers", value);
-            PlayerPrefs.Save();
+            PlayerPrefs.SetInt("damage_numbers", value ? 1 : 0);
+        }
+
+        private void OnShowProfileChanged(bool value)
+        {
+            PlayerPrefs.SetInt("show_profile", value ? 1 : 0);
+        }
+
+        private void OnShowOnlineStatusChanged(bool value)
+        {
+            PlayerPrefs.SetInt("show_online", value ? 1 : 0);
+        }
+
+        private void OnAllowFriendRequestsChanged(bool value)
+        {
+            PlayerPrefs.SetInt("allow_friends", value ? 1 : 0);
+        }
+
+        private void OnAllowClanInvitesChanged(bool value)
+        {
+            PlayerPrefs.SetInt("allow_clan_invites", value ? 1 : 0);
+        }
+
+        private void OnDeleteAccount()
+        {
+            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DeleteAccountConfirmModal"));
+        }
+
+        private void OnHighContrastChanged(bool value)
+        {
+            PlayerPrefs.SetInt("high_contrast", value ? 1 : 0);
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.SetHighContrastMode(value);
+            }
+        }
+
+        private void OnReduceMotionChanged(bool value)
+        {
+            PlayerPrefs.SetInt("reduce_motion", value ? 1 : 0);
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.SetReduceMotion(value);
+            }
+        }
+
+        private void OnTextScaleChanged(float value)
+        {
+            PlayerPrefs.SetFloat("text_scale", value);
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.SetTextScale(value);
+            }
         }
 
         private void OnColorBlindChanged(int value)
         {
-            AccessibilityManager.Instance?.SetColorBlindMode((AccessibilityManager.ColorBlindMode)value);
+            PlayerPrefs.SetInt("color_blind", value);
+            if (AccessibilityManager.Instance != null)
+            {
+                AccessibilityManager.Instance.SetColorBlindMode((AccessibilityManager.ColorBlindMode)value);
+            }
+        }
+
+        private void ResetAccessibility()
+        {
+            _highContrastToggle?.SetIsOnWithoutNotify(false);
+            _reduceMotionToggle?.SetIsOnWithoutNotify(false);
+            _textScaleSlider?.SetValueWithoutNotify(1f);
+            _colorBlindDropdown?.SetValueWithoutNotify(0);
+
+            OnHighContrastChanged(false);
+            OnReduceMotionChanged(false);
+            OnTextScaleChanged(1f);
+            OnColorBlindChanged(0);
+
+            EventBus.RaiseToast("Accessibility settings reset!");
         }
 
         private void ResetToDefaults()
         {
-            UIAudioManager.Instance?.ResetToDefaults();
-            AccessibilityManager.Instance?.ResetToDefaults();
-            InputManager.Instance?.ResetAllBindings();
+            ResetAccessibility();
+
+            // Reset graphics
+            _graphicsQualityDropdown?.SetValueWithoutNotify(2);
+            _fpsCapDropdown?.SetValueWithoutNotify(1);
+            _vSyncToggle?.SetIsOnWithoutNotify(true);
+            _fullscreenDropdown?.SetValueWithoutNotify(1);
+
+            // Reset audio
+            _masterVolumeSlider?.SetValueWithoutNotify(1f);
+            _musicVolumeSlider?.SetValueWithoutNotify(1f);
+            _sfxVolumeSlider?.SetValueWithoutNotify(1f);
+            _voiceVolumeSlider?.SetValueWithoutNotify(1f);
+            _muteToggle?.SetIsOnWithoutNotify(false);
+            _muteOnFocusLossToggle?.SetIsOnWithoutNotify(true);
+
+            // Reset gameplay
+            _deployModeDropdown?.SetValueWithoutNotify(2);
+            _spellAimingDropdown?.SetValueWithoutNotify(2);
+            _autoTargetToggle?.SetIsOnWithoutNotify(true);
+            _leftHandedToggle?.SetIsOnWithoutNotify(false);
+            _cameraShakeToggle?.SetIsOnWithoutNotify(true);
+            _damageNumbersToggle?.SetIsOnWithoutNotify(true);
+
+            // Reset privacy
+            _showProfileToggle?.SetIsOnWithoutNotify(true);
+            _showOnlineStatusToggle?.SetIsOnWithoutNotify(true);
+            _allowFriendRequestsToggle?.SetIsOnWithoutNotify(true);
+            _allowClanInvitesToggle?.SetIsOnWithoutNotify(true);
 
             LoadSettings();
-            EventBus.RaiseToast("Settings reset to defaults!");
+            EventBus.RaiseToast("All settings reset to defaults!");
         }
     }
 }
