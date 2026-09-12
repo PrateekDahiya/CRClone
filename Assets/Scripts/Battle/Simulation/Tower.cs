@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using CRClone.Core;
+using CRClone.Data;
 
 namespace CRClone.Battle.Simulation
 {
@@ -26,6 +27,37 @@ namespace CRClone.Battle.Simulation
             Range = range;
             AttackCooldown = hitSpeed;
             CollisionRadius = 1f;
+        }
+
+        public override void TakeDamage(int amount, DamageType damageType, uint sourceId)
+        {
+            if (IsDead) return;
+
+            int prevHP = CurrentHP;
+            base.TakeDamage(amount, damageType, sourceId);
+
+            // Emit TowerDamaged event
+            EventBus.Raise(new EventBus.TowerDamagedEvent
+            {
+                playerId = OwnerPlayerId,
+                towerType = (EventBus.TowerType)(int)Type,
+                damage = amount,
+                remainingHP = CurrentHP,
+                sourceEntityId = sourceId
+            });
+        }
+
+        public override void Die(DeathCause cause = DeathCause.Damage)
+        {
+            base.Die(cause);
+
+            // Emit TowerDestroyed event
+            EventBus.Raise(new EventBus.TowerDestroyedEvent
+            {
+                playerId = OwnerPlayerId,
+                towerType = (EventBus.TowerType)(int)Type,
+                sourceEntityId = 0 // Would need to track killer
+            });
         }
 
         public override void Tick(float dt, BattleSimulation sim)
@@ -98,19 +130,26 @@ namespace CRClone.Battle.Simulation
                 var stats = guardData.GetStats(1); // Level based on king tower
                 for (int i = 0; i < 2; i++)
                 {
-                    var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                    var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                     var guard = new Unit(sim._nextEntityId++, OwnerPlayerId, guardData, stats, Position + offset, 1);
                     sim._units.Add(guard);
                     sim._entities[guard.Id] = guard;
                 }
             }
 
-            sim.LogEvent(new BattleEvent
+            sim.LogBattleEvent(new BattleEvent
             {
                 tick = sim.CurrentTick,
                 type = EventType.KingActivated,
                 playerId = OwnerPlayerId,
                 position = Position
+            });
+
+            // Emit KingTowerActivated event
+            EventBus.Raise(new EventBus.KingTowerActivatedEvent
+            {
+                playerId = OwnerPlayerId,
+                cause = (EventBus.ActivationCause)(int)cause
             });
         }
 

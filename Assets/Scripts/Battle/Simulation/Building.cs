@@ -250,7 +250,7 @@ namespace CRClone.Battle.Simulation
             if (cardData != null)
             {
                 var stats = cardData.GetStats(Level);
-                var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                 var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                 sim._units.Add(unit);
                 sim._entities[unit.Id] = unit;
@@ -265,7 +265,7 @@ namespace CRClone.Battle.Simulation
                 var stats = cardData.GetStats(Level);
                 for (int i = 0; i < 2; i++)
                 {
-                    var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                    var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                     var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                     sim._units.Add(unit);
                     sim._entities[unit.Id] = unit;
@@ -279,7 +279,7 @@ namespace CRClone.Battle.Simulation
             if (cardData != null)
             {
                 var stats = cardData.GetStats(Level);
-                var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                 var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                 sim._units.Add(unit);
                 sim._entities[unit.Id] = unit;
@@ -294,7 +294,7 @@ namespace CRClone.Battle.Simulation
                 var stats = cardData.GetStats(Level);
                 for (int i = 0; i < 2; i++)
                 {
-                    var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                    var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                     var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                     sim._units.Add(unit);
                     sim._entities[unit.Id] = unit;
@@ -309,7 +309,18 @@ namespace CRClone.Battle.Simulation
             if (SpawnTimer <= 0)
             {
                 var player = OwnerPlayerId == 1 ? sim._player1 : sim._player2;
+                int prevElixir = player.Elixir;
                 player.Elixir = Math.Min(sim._config.maxElixir, player.Elixir + 1);
+                
+                // Emit ElixirChanged event
+                EventBus.Raise(new EventBus.ElixirChangedEvent
+                {
+                    playerId = OwnerPlayerId,
+                    currentElixir = player.Elixir,
+                    previousElixir = prevElixir,
+                    reason = EventBus.ElixirChangeReason.ElixirCollector
+                });
+                
                 SpawnTimer = 9.8f;
             }
         }
@@ -554,7 +565,7 @@ namespace CRClone.Battle.Simulation
                     var stats = cardData.GetStats(Level);
                     for (int i = 0; i < 4; i++)
                     {
-                        var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                        var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                         var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                         sim._units.Add(unit);
                         sim._entities[unit.Id] = unit;
@@ -582,7 +593,7 @@ namespace CRClone.Battle.Simulation
                     var stats = cardData.GetStats(Level);
                     for (int i = 0; i < 2; i++)
                     {
-                        var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                        var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                         var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                         sim._units.Add(unit);
                         sim._entities[unit.Id] = unit;
