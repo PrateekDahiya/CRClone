@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package crclone;
+
+option js_import_style = "commonjs";
+
+// Base message wrapper
+message Message {
+  string type = 1;
+  uint32 request_id = 2;
+  uint64 timestamp = 3;
+
+  // Auth
+  string token = 10;
+  bool success = 11;
+  string player_id = 12;
+  string error = 13;
+
+  // Matchmaking
+  string battle_type = 20;
+
+  // Battle
+  string battle_id = 30;
+  uint64 seed = 31;
+  PlayerBattleInfo player1 = 32;
+  PlayerBattleInfo player2 = 33;
+
+  // Input
+  uint32 tick = 40;
+  PlayerInput input = 41;
+  uint32 ack_tick = 42;
+
+  // Game State
+  repeated EntityState entities = 50;
+  repeated EntityState projectiles = 51;
+  PlayerState player1_state = 52;
+  PlayerState player2_state = 53;
+  string status = 54;
+
+  // Reconcile
+  repeated EntityState reconcile_entities = 60;
+
+  // Battle End
+  BattleResult result = 70;
+
+  // Error
+  string message = 80;
+  string code = 81;
+
+  // Deck
+  repeated uint32 card_ids = 90;
+}
+
+// Player input
+message PlayerInput {
+  string type = 1; // play_card, cast_spell, champion_ability, emote
+  uint32 card_id = 2;
+  uint32 spell_id = 3;
+  Vector2 position = 4;
+  Vector2 target_position = 5;
+  uint32 client_tick = 6;
+}
+
+// Vector2
+message Vector2 {
+  float x = 1;
+  float y = 2;
+}
+
+// Player battle info
+message PlayerBattleInfo {
+  string player_id = 1;
+  string username = 2;
+  int32 trophies = 3;
+  repeated uint32 deck = 4;
+  int32 king_tower_level = 5;
+  int32 princess_tower_level = 6;
+}
+
+// Player state
+message PlayerState {
+  string player_id = 1;
+  int32 elixir = 2;
+  repeated uint32 hand = 3;
+  repeated uint32 deck = 4;
+  int32 next_card_index = 5;
+  bool king_tower_activated = 6;
+}
+
+// Entity state
+message EntityState {
+  uint32 id = 1;
+  string type = 2; // unit, building, projectile, spell_effect, tower
+  uint32 owner = 3;
+  Vector2 position = 4;
+  Vector2 velocity = 5;
+  int32 hp = 6;
+  int32 max_hp = 7;
+  uint32 target_id = 8;
+  bool is_dead = 9;
+  
+  // Unit specific
+  string state = 10;
+  float attack_cooldown = 11;
+  
+  // Building specific
+  float lifetime = 12;
+  bool is_retracted = 13;
+  float spawn_timer = 14;
+  
+  // Projectile specific
+  uint32 source_id = 15;
+  bool is_beam = 16;
+  
+  // Spell specific
+  string spell_type = 17;
+  float radius = 18;
+  float remaining_time = 19;
+}
+
+// Battle result
+message BattleResult {
+  string battle_id = 1;
+  string winner = 2; // player1, player2, draw
+  int32 player1_crowns = 3;
+  int32 player2_crowns = 4;
+  int32 player1_trophy_change = 5;
+  int32 player2_trophy_change = 6;
+  int32 duration = 7;
+  bool went_overtime = 8;
+  string replay_id = 9;
+}
+
+// Matchmaking queue entry
+message MatchmakingQueueEntry {
+  string player_id = 1;
+  string username = 2;
+  int32 trophies = 3;
+  repeated uint32 deck = 4;
+  string battle_type = 5;
+  int64 joined_at = 6;
+}

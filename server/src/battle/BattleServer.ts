@@ -1,32 +1,50 @@
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { DeterministicRNG } from '../utils/rng';
-import { BattleType, BattleStatus, PlayerInput, PlayerBattleInfo, EntityState, PlayerState } from '../types';
+import { BattleType, BattleStatus, PlayerInput, PlayerBattleInfo, EntityState, PlayerState, Vector2, EntityType, TowerType } from '../types';
 import { PlayerService } from '../services/PlayerService';
+import { BattleSimulation, FixedVector2 } from './BattleSimulation';
+import { EntityManager } from './EntityManager';
+import { ReplayRecorder, PlayerInputRecord } from './ReplayRecorder';
 
 interface BattlePlayer {
   info: PlayerBattleInfo;
-  connection: any; // NetworkClient
+  connection: any;
   elixir: number;
   hand: number[];
   deck: number[];
   nextCardIndex: number;
   kingTowerActivated: boolean;
+  isBot?: boolean;
+  teamPlayers?: any[];
+  acknowledgedTick: number;
+  pendingInputs: Map<number, PlayerInput>;
+}
+
+type WinnerType = 'player1' | 'player2' | 'draw';
+
+function battleStatusToWinner(status: BattleStatus): WinnerType {
+  if (status === BattleStatus.Player1Won) return 'player1';
+  if (status === BattleStatus.Player2Won) return 'player2';
+  return 'draw';
 }
 
 export class BattleServer {
   public readonly battleId: string;
-  private rng: DeterministicRNG;
-  private player1: BattlePlayer;
-  private player2: BattlePlayer;
-  private status: BattleStatus = BattleStatus.Waiting;
-  private tick = 0;
-  private startTime: number;
-  private entities: Map<number, EntityState> = new Map();
-  private nextEntityId = 1000;
-  private eventLog: any[] = [];
-  private playerService: PlayerService;
-  private gameEnded = false;
+  private _simulation: BattleSimulation;
+  private _entityManager: EntityManager;
+  private _replayRecorder: ReplayRecorder;
+  private _tickInterval: NodeJS.Timeout | null = null;
+  private _player1: BattlePlayer;
+  private _player2: BattlePlayer;
+  private _status: BattleStatus = BattleStatus.Waiting;
+  private _tick: number = 0;
+  private _startTime: number;
+  private _playerService: PlayerService;
+  private _gameEnded: boolean = false;
+  private _connectionManager: any;
+  private _isBotMatch: boolean = false;
+  private _inputBuffers: Map<string, PlayerInput[]> = new Map();
 
   constructor(
     battleId: string,
@@ -36,15 +54,41 @@ export class BattleServer {
     playerService: PlayerService
   ) {
     this.battleId = battleId;
-    this.rng = new DeterministicRNG(BigInt(seed));
-    this.playerService = playerService;
+    this._playerService = playerService;
+    this._startTime = Date.now();
 
-    this.player1 = this.createPlayer(p1Info, 1);
-    this.player2 = this.createPlayer(p2Info, 2);
-    this.startTime = Date.now();
+    // Initialize simulation
+    this._simulation = new BattleSimulation();
+    this._entityManager = new EntityManager();
+    this._replayRecorder = new ReplayRecorder(battleId, BattleType.Ladder, BigInt(seed), p1Info, p2Info);
 
-    // Initialize towers
-    this.initializeTowers();
+    // Create players
+    this._player1 = this.createPlayer(p1Info, 1);
+    this._player2 = this.createPlayer(p2Info, 2);
+
+    // Initialize simulation with game config and decks
+    const gameConfig = {
+      startingElixir: config.game.startingElixir,
+      maxElixir: config.game.maxElixir,
+      elixirGenerationRate: config.game.elixirGenerationRate,
+      doubleElixirRate: config.game.doubleElixirRate,
+      tripleElixirRate: config.game.tripleElixirRate,
+      battleDuration: config.game.battleDuration,
+      overtimeDuration: config.game.overtimeDuration,
+      handSize: config.game.handSize,
+      kingTowerHP: 4336, // Level 11 King Tower HP
+      princessTowerHP: 2168, // Level 11 Princess Tower HP
+      towerDamage: 240,
+      towerHitSpeed: 1.1,
+      towerRange: 7,
+    };
+
+    // Card database would be loaded from data files
+    const cardDatabase = new Map<number, any>();
+    this._simulation.Initialize(gameConfig, BigInt(seed), p1Info.deck, p2Info.deck, cardDatabase);
+
+    // Apply initial state to entity manager
+    this.syncEntityManager();
 
     logger.info('Battle server created', { battleId, seed });
   }
@@ -58,25 +102,114 @@ export class BattleServer {
       deck: [...info.deck],
       nextCardIndex: config.game.handSize,
       kingTowerActivated: false,
+      acknowledgedTick: 0,
+      pendingInputs: new Map(),
     };
   }
 
-  private initializeTowers(): void {
-    // Create tower entities for both players
-    // Tower IDs: 1-3 for P1, 4-6 for P2
-    // This is simplified - real implementation would use the simulation
+  setConnectionManager(connectionManager: any): void {
+    this._connectionManager = connectionManager;
   }
 
   setConnection(playerId: string, connection: any): void {
-    if (this.player1.info.playerId === playerId) {
-      this.player1.connection = connection;
-    } else if (this.player2.info.playerId === playerId) {
-      this.player2.connection = connection;
+    if (this._player1.info.playerId === playerId) {
+      this._player1.connection = connection;
+    } else if (this._player2.info.playerId === playerId) {
+      this._player2.connection = connection;
+    }
+  }
+
+  setTeamData(team1: any[], team2: any[]): void {
+    this._player1.teamPlayers = team1;
+    this._player2.teamPlayers = team2;
+  }
+
+  setBotMode(enabled: boolean): void {
+    this._isBotMatch = enabled;
+    this._player2.isBot = enabled;
+    if (enabled) {
+      this._player2.info.playerId = 'bot';
+      this._player2.info.username = 'Practice Bot';
+    }
+  }
+
+  start(): void {
+    this._status = BattleStatus.Playing;
+    this._tickInterval = setInterval(() => this.tick(), 1000 / 60); // 60Hz
+    this.broadcastBattleStart();
+  }
+
+  private tick(): void {
+    if (this._gameEnded || this._status !== BattleStatus.Playing) {
+      if (this._tickInterval) {
+        clearInterval(this._tickInterval);
+        this._tickInterval = null;
+      }
+      return;
+    }
+
+    this._tick++;
+
+    // 1. Process queued inputs
+    this.processInputs();
+
+    // 2. Step simulation
+    this._simulation.Tick();
+
+    // 3. Record for replay
+    const playerInputs = new Map<string, PlayerInputRecord[]>();
+    playerInputs.set(this._player1.info.playerId, this.getPlayerInputsForTick(this._player1.info.playerId));
+    playerInputs.set(this._player2.info.playerId, this.getPlayerInputsForTick(this._player2.info.playerId));
+    const entities = this.getEntityStates();
+    this._replayRecorder.recordFrame(this._tick, playerInputs, entities);
+
+    // 4. Compute delta and broadcast
+    const delta = this._entityManager.computeDelta(entities);
+    this.broadcastGameState(delta);
+
+    // 5. Check end condition
+    if (this._simulation.Status !== BattleStatus.Playing) {
+      this.endBattle(battleStatusToWinner(this._simulation.Status));
+    }
+  }
+
+  private processInputs(): void {
+    // Process player 1 inputs
+    const p1Inputs = this._inputBuffers.get(this._player1.info.playerId) || [];
+    for (const input of p1Inputs) {
+      this._simulation.QueueInput(1, input);
+    }
+    this._inputBuffers.delete(this._player1.info.playerId);
+
+    // Process player 2 inputs
+    const p2Inputs = this._inputBuffers.get(this._player2.info.playerId) || [];
+    for (const input of p2Inputs) {
+      this._simulation.QueueInput(2, input);
+    }
+    this._inputBuffers.delete(this._player2.info.playerId);
+
+    // Bot AI for practice matches
+    if (this._isBotMatch && this._player2.isBot) {
+      this.runBotAI();
+    }
+  }
+
+  private runBotAI(): void {
+    // Simple bot AI - play random card if enough elixir
+    if (this._player2.elixir >= 3 && this._player2.hand.length > 0) {
+      const cardId = this._player2.hand[0];
+      const position = { x: 9 + (Math.random() - 0.5) * 4, y: 20 + (Math.random() - 0.5) * 4 };
+      this._simulation.QueueInput(2, {
+        type: 'play_card',
+        cardId,
+        position,
+        clientTick: this._tick,
+      });
     }
   }
 
   handleInput(playerId: string, input: PlayerInput): void {
-    if (this.status !== BattleStatus.Playing) return;
+    if (this._status !== BattleStatus.Playing) return;
 
     const player = this.getPlayerById(playerId);
     if (!player) return;
@@ -87,69 +220,266 @@ export class BattleServer {
       return;
     }
 
-    // Apply input immediately (server-authoritative)
-    this.applyInput(player, input);
+    // Queue for next tick
+    const buffer = this._inputBuffers.get(playerId) || [];
+    buffer.push(input);
+    this._inputBuffers.set(playerId, buffer);
+
+    // Send immediate acknowledgment
+    this.sendInputAck(playerId, input.clientTick);
   }
 
   private validateInput(player: BattlePlayer, input: PlayerInput): boolean {
-    // Check elixir cost
     // Check card ownership
-    // Check position validity
-    return true; // Simplified
-  }
-
-  private applyInput(player: BattlePlayer, input: PlayerInput): void {
-    const opponent = player === this.player1 ? this.player2 : this.player1;
-
-    switch (input.type) {
-      case 'play_card':
-        this.playCard(player, opponent, input);
-        break;
-      case 'cast_spell':
-        this.castSpell(player, opponent, input);
-        break;
-      case 'champion_ability':
-        this.useChampionAbility(player, opponent, input);
-        break;
+    if (input.type === 'play_card' && input.cardId !== undefined) {
+      if (!player.hand.includes(input.cardId)) {
+        return false;
+      }
     }
+
+    // Check elixir cost (simplified - would lookup actual cost)
+    const estimatedCost = input.type === 'play_card' ? 3 : 2;
+    if (player.elixir < estimatedCost) {
+      return false;
+    }
+
+    // Check position validity
+    if (!this.isValidPosition(player, input.position, input.type)) {
+      return false;
+    }
+
+    // Rate limiting
+    if (player.pendingInputs.size > 20) {
+      return false;
+    }
+
+    return true;
   }
 
-  private playCard(player: BattlePlayer, opponent: BattlePlayer, input: PlayerInput): void {
-    // Find card in hand
-    const handIndex = player.hand.indexOf(input.cardId!);
-    if (handIndex === -1) return;
+  private isValidPosition(player: BattlePlayer, position: Vector2, inputType: string): boolean {
+    const isPlayer1 = player === this._player1;
+    const deployZoneMaxY = isPlayer1 ? 16 : 16; // Adjusted for tower destruction
+    const riverBoundary = isPlayer1 ? 14 : 18;
 
-    // Deduct elixir (simplified)
-    // Spawn entity
-    // Draw next card
-    player.hand.splice(handIndex, 1);
-    player.drawCard();
-  }
+    // Spells can be placed anywhere
+    if (inputType === 'cast_spell') return true;
 
-  private castSpell(player: BattlePlayer, opponent: BattlePlayer, input: PlayerInput): void {
-    // Similar to playCard but for spells
-  }
+    // Check deploy zone
+    if (isPlayer1 && position.y > deployZoneMaxY) return false;
+    if (!isPlayer1 && position.y < deployZoneMaxY) return false;
 
-  private useChampionAbility(player: BattlePlayer, opponent: BattlePlayer, input: PlayerInput): void {
-    // Champion ability logic
+    // Buildings must be on own side
+    // (would check card type)
+
+    return true;
   }
 
   private getPlayerById(playerId: string): BattlePlayer | null {
-    if (this.player1.info.playerId === playerId) return this.player1;
-    if (this.player2.info.playerId === playerId) return this.player2;
+    if (this._player1.info.playerId === playerId) return this._player1;
+    if (this._player2.info.playerId === playerId) return this._player2;
     return null;
   }
 
-  private drawCard(player: BattlePlayer): void {
-    if (player.nextCardIndex >= player.deck.length) {
-      player.nextCardIndex = 0;
+  private getPlayerInputsForTick(playerId: string): PlayerInputRecord[] {
+    const buffer = this._inputBuffers.get(playerId) || [];
+    return buffer.map(input => ({
+      playerId,
+      input: {
+        type: input.type,
+        cardId: input.cardId,
+        spellId: input.spellId,
+        position: input.position,
+        targetPosition: input.targetPosition,
+        clientTick: input.clientTick,
+      },
+    }));
+  }
+
+  private getEntityStates(): EntityState[] {
+    const entities: EntityState[] = [];
+
+    // Units
+    for (const unit of this._simulation.Units) {
+      entities.push(this.unitToEntityState(unit));
     }
-    player.hand[config.game.handSize - 1] = player.deck[player.nextCardIndex];
-    player.nextCardIndex++;
+
+    // Buildings
+    for (const building of this._simulation.Buildings) {
+      entities.push(this.buildingToEntityState(building));
+    }
+
+    // Projectiles
+    for (const projectile of this._simulation.Projectiles) {
+      entities.push(this.projectileToEntityState(projectile));
+    }
+
+    // Towers
+    for (const tower of this._simulation.Towers) {
+      entities.push(this.towerToEntityState(tower));
+    }
+
+    // Active spells
+    for (const spell of this._simulation.ActiveSpells) {
+      entities.push(this.spellToEntityState(spell));
+    }
+
+    return entities;
+  }
+
+  private unitToEntityState(unit: any): EntityState {
+    return {
+      id: unit.Id,
+      type: EntityType.Unit,
+      owner: unit.OwnerPlayerId,
+      position: { x: unit.Position.x.toFloat(), y: unit.Position.y.toFloat() },
+      velocity: { x: unit.Velocity.x.toFloat(), y: unit.Velocity.y.toFloat() },
+      hp: unit.CurrentHP,
+      maxHp: unit.MaxHP,
+      targetId: unit.TargetId,
+      isDead: unit.IsDead,
+      state: unit.State.toString(),
+      attackCooldown: unit.AttackCooldown,
+    };
+  }
+
+  private buildingToEntityState(building: any): EntityState {
+    return {
+      id: building.Id,
+      type: EntityType.Building,
+      owner: building.OwnerPlayerId,
+      position: { x: building.Position.x.toFloat(), y: building.Position.y.toFloat() },
+      velocity: { x: 0, y: 0 },
+      hp: building.CurrentHP,
+      maxHp: building.MaxHP,
+      targetId: 0,
+      isDead: building.IsDead,
+      lifetime: building.Lifetime,
+      isRetracted: building.IsRetracted,
+      spawnTimer: building.SpawnTimer,
+    };
+  }
+
+  private projectileToEntityState(projectile: any): EntityState {
+    return {
+      id: projectile.Id,
+      type: EntityType.Projectile,
+      owner: projectile.OwnerPlayerId,
+      position: { x: projectile.Position.x.toFloat(), y: projectile.Position.y.toFloat() },
+      velocity: { x: projectile.Velocity.x.toFloat(), y: projectile.Velocity.y.toFloat() },
+      hp: 1,
+      maxHp: 1,
+      targetId: projectile.TargetId,
+      isDead: projectile.IsDead,
+      sourceId: projectile.SourceId,
+      isBeam: projectile.IsBeam,
+    };
+  }
+
+  private towerToEntityState(tower: any): EntityState {
+    return {
+      id: tower.Id,
+      type: EntityType.Tower,
+      owner: tower.OwnerPlayerId,
+      position: { x: tower.Position.x.toFloat(), y: tower.Position.y.toFloat() },
+      velocity: { x: 0, y: 0 },
+      hp: tower.CurrentHP,
+      maxHp: tower.MaxHP,
+      targetId: tower.TargetId || 0,
+      isDead: tower.IsDead,
+    };
+  }
+
+  private spellToEntityState(spell: any): EntityState {
+    return {
+      id: spell.Id,
+      type: EntityType.SpellEffect,
+      owner: spell.OwnerPlayerId,
+      position: { x: spell.Position.x.toFloat(), y: spell.Position.y.toFloat() },
+      velocity: { x: 0, y: 0 },
+      hp: 1,
+      maxHp: 1,
+      targetId: 0,
+      isDead: spell.IsFinished,
+      spellType: spell.SpellType.toString(),
+      radius: spell.Radius.toFloat(),
+      remainingTime: spell.RemainingTime,
+    };
+  }
+
+  private syncEntityManager(): void {
+    const entities = this.getEntityStates();
+    this._entityManager.applyFullState(entities);
+  }
+
+  private broadcastGameState(delta: EntityState[]): void {
+    if (!this._connectionManager) return;
+
+    const playerStates = this.getPlayerStates();
+    
+    const message = {
+      type: 'game_state',
+      tick: this._tick,
+      entities: delta,
+      projectiles: delta.filter(e => e.type === 'projectile'),
+      player1: playerStates[0],
+      player2: playerStates[1],
+      status: this._simulation.Status,
+    };
+
+    this._connectionManager.broadcastToBattle(this.battleId, message);
+  }
+
+  private getPlayerStates(): [PlayerState, PlayerState] {
+    return [
+      {
+        playerId: 1,
+        elixir: Math.floor(this._simulation.Player1.Elixir),
+        hand: this._simulation.Player1.Hand,
+        deck: this._simulation.Player1.Deck,
+        nextCardIndex: this._simulation.Player1.NextCardIndex,
+        kingTowerActivated: this._simulation.Player1.KingTowerActivated,
+      },
+      {
+        playerId: 2,
+        elixir: Math.floor(this._simulation.Player2.Elixir),
+        hand: this._simulation.Player2.Hand,
+        deck: this._simulation.Player2.Deck,
+        nextCardIndex: this._simulation.Player2.NextCardIndex,
+        kingTowerActivated: this._simulation.Player2.KingTowerActivated,
+      },
+    ];
+  }
+
+  private broadcastBattleStart(): void {
+    if (!this._connectionManager) return;
+
+    const message = {
+      type: 'battle_start',
+      battleId: this.battleId,
+      tick: 0,
+      player1: this.getPlayerStates()[0],
+      player2: this.getPlayerStates()[1],
+    };
+
+    this._connectionManager.broadcastToBattle(this.battleId, message);
+  }
+
+  private sendInputAck(playerId: string, ackTick: number): void {
+    if (!this._connectionManager) return;
+
+    const message = {
+      type: 'input_ack',
+      ackTick,
+    };
+
+    const player = this.getPlayerById(playerId);
+    if (player?.connection) {
+      player.connection.send(message);
+    }
   }
 
   handleDisconnect(playerId: string): void {
-    if (this.gameEnded) return;
+    if (this._gameEnded) return;
 
     const player = this.getPlayerById(playerId);
     if (!player) return;
@@ -158,64 +488,103 @@ export class BattleServer {
 
     // Give grace period for reconnection
     setTimeout(() => {
-      if (!player.connection && !this.gameEnded) {
-        // Force forfeit
-        this.endBattle(player === this.player1 ? 'player2' : 'player1', true);
+      if (!player.connection && !this._gameEnded) {
+        this.endBattle(player === this._player1 ? 'player2' : 'player1', true);
       }
     }, 10000);
   }
 
   forceEnd(): void {
-    if (this.gameEnded) return;
+    if (this._gameEnded) return;
     this.endBattle('draw', true);
   }
 
-  private endBattle(winner: 'player1' | 'player2' | 'draw', forfeit = false): void {
-    if (this.gameEnded) return;
-    this.gameEnded = true;
-    this.status = winner === 'player1' ? BattleStatus.Player1Won : 
+  private endBattle(winner: WinnerType, forfeit = false): void {
+    if (this._gameEnded) return;
+    this._gameEnded = true;
+
+    if (this._tickInterval) {
+      clearInterval(this._tickInterval);
+      this._tickInterval = null;
+    }
+
+    this._status = winner === 'player1' ? BattleStatus.Player1Won : 
                   winner === 'player2' ? BattleStatus.Player2Won : BattleStatus.Draw;
 
-    const duration = (Date.now() - this.startTime) / 1000;
+    const duration = Math.floor((Date.now() - this._startTime) / 1000);
 
-    // Calculate results
-    const result = this.calculateResult(winner, duration, forfeit);
+// Calculate crowns
+    let p1Crowns = 0, p2Crowns = 0;
+    for (const tower of this._simulation.Towers) {
+      if (tower.OwnerPlayerId === 1 && tower.TowerType !== TowerType.King && tower.IsDead) p1Crowns++;
+      if (tower.OwnerPlayerId === 2 && tower.TowerType !== TowerType.King && tower.IsDead) p2Crowns++;
+    }
+    if (winner === 'player1') p1Crowns = 3;
+    if (winner === 'player2') p2Crowns = 3;
 
-    // Notify players
-    this.sendBattleEnd(result);
+    // Calculate trophy changes (simplified)
+    const p1TrophyChange = winner === 'player1' ? 30 : -30;
+    const p2TrophyChange = winner === 'player2' ? 30 : -30;
 
-    // Save to database
-    this.saveBattleResult(result);
+    const result = {
+      battleId: this.battleId,
+      winner,
+      player1Crowns: p1Crowns,
+      player2Crowns: p2Crowns,
+      player1TrophyChange: forfeit ? -30 : p1TrophyChange,
+      player2TrophyChange: forfeit ? -30 : p2TrophyChange,
+      duration,
+      wentOvertime: duration > 180,
+      replayId: '',
+    };
 
-    // Cleanup
-    this.cleanup();
+    // Save replay synchronously
+    const replayData = this._replayRecorder.finalize(result);
+    
+    // Save replay and battle result asynchronously
+    this.saveReplayAndResult(replayData, result);
   }
 
-  private calculateResult(winner: string, duration: number, forfeit: boolean): any {
-    // Calculate crowns, trophy changes, etc.
-    return {
-      battleId: this.battleId,
-      result: winner,
-      duration,
-      forfeit,
-      // ... more fields
-    };
+  private async saveReplayAndResult(replayData: any, result: any): Promise<void> {
+    try {
+      const { Database } = require('../persistence/Database');
+      const db = new Database();
+      await db.connect();
+      result.replayId = await this._replayRecorder.save(db);
+      await this.saveBattleResult(result);
+      await db.close();
+      this.sendBattleEnd(result);
+    } catch (error) {
+      logger.error('Failed to finalize replay', { error: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   private sendBattleEnd(result: any): void {
-    // Send to both players
+    if (!this._connectionManager) return;
+
+    const message = {
+      type: 'battle_end',
+      battleId: this.battleId,
+      result: {
+        winner: result.winner,
+        player1Crowns: result.player1Crowns,
+        player2Crowns: result.player2Crowns,
+        player1TrophyChange: result.player1TrophyChange,
+        player2TrophyChange: result.player2TrophyChange,
+        duration: result.duration,
+        wentOvertime: result.wentOvertime,
+        replayId: result.replayId,
+      },
+    };
+
+    this._connectionManager.broadcastToBattle(this.battleId, message);
   }
 
   private async saveBattleResult(result: any): Promise<void> {
     try {
-      await this.playerService.saveBattleResult(result);
+      await this._playerService.saveBattleResult(result);
     } catch (error) {
-      logger.error('Failed to save battle result', { error: error.message });
+      logger.error('Failed to save battle result', { error: error instanceof Error ? error.message : String(error) });
     }
-  }
-
-  private cleanup(): void {
-    // Unregister from game server
-    // this.gameServer?.unregisterBattle(this.battleId);
   }
 }

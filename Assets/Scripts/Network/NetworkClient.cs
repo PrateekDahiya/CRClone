@@ -1,53 +1,89 @@
 using System;
 using System.Collections.Generic;
+using System.Net.WebSockets;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
-using System.Text;
 using CRClone.Core;
+using CRClone.Network;
 
 namespace CRClone.Network
 {
     public class NetworkClient : MonoBehaviour
     {
-        private System.Net.WebSockets.ClientWebSocket _ws;
+        private ClientWebSocket _ws;
         private bool _isConnected = false;
         private string _serverUrl;
         private string _authToken;
         private uint _lastAckedTick = 0;
         private uint _clientTick = 0;
-        private readonly Queue<PlayerInput> _pendingInputs = new();
-        private readonly Dictionary<uint, PlayerInput> _sentInputs = new();
-        private readonly Dictionary<uint, Action<NetworkMessage>> _pendingRequests = new();
+        private uint _serverTick = 0;
+        
+        // Input management
+        private readonly Queue<PlayerInput> _pendingInputs = new Queue<PlayerInput>();
+        private readonly Dictionary<uint, PlayerInput> _sentInputs = new Dictionary<uint, PlayerInput>();
+        private readonly Dictionary<uint, float> _inputSentTimes = new Dictionary<uint, float>();
+        private const float RETRANSMIT_TIMEOUT = 1f; // 1 second
+        private const int MAX_PENDING_INPUTS = 20;
+
+        // Request/Response
+        private readonly Dictionary<uint, Action<NetworkMessage>> _pendingRequests = new Dictionary<uint, Action<NetworkMessage>>();
         private uint _requestId = 0;
+
+        // Reconnection
+        private ReconnectionManager _reconnectionManager;
         private float _reconnectTimer = 0f;
         private const float RECONNECT_DELAY = 5f;
+
+        // Heartbeat
         private const float HEARTBEAT_INTERVAL = 10f;
         private float _lastHeartbeat = 0f;
 
-        public bool IsConnected => _isConnected && _ws?.State == System.Net.WebSockets.WebSocketState.Open;
+        // Message buffer for fragmentation
+        private readonly List<byte> _receiveBuffer = new List<byte>();
+
+        public bool IsConnected => _isConnected && _ws?.State == WebSocketState.Open;
+
+        private void Awake()
+        {
+            _reconnectionManager = GetComponent<ReconnectionManager>();
+            if (_reconnectionManager == null)
+            {
+                _reconnectionManager = gameObject.AddComponent<ReconnectionManager>();
+            }
+        }
 
         public void Connect(string serverUrl, string authToken)
         {
             _serverUrl = serverUrl;
             _authToken = authToken;
+            _reconnectionManager?.SetCredentials(serverUrl, authToken);
             _ = ConnectAsync();
         }
 
-        private async System.Threading.Tasks.Task ConnectAsync()
+        private async Task ConnectAsync()
         {
             try
             {
-                _ws = new System.Net.WebSockets.ClientWebSocket();
+                _ws = new ClientWebSocket();
                 var uri = new Uri(_serverUrl);
-                await _ws.ConnectAsync(uri, System.Threading.CancellationToken.None);
+                
+                // Set keep alive
+                _ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
+                
+                await _ws.ConnectAsync(uri, CancellationToken.None);
                 
                 _isConnected = true;
                 _clientTick = 0;
                 _lastAckedTick = 0;
+                _serverTick = 0;
                 _pendingInputs.Clear();
                 _sentInputs.Clear();
+                _inputSentTimes.Clear();
+                _pendingRequests.Clear();
 
-                Debug.Log("[NetworkClient] Connected to server");
-                EventBus.Raise(new EventBus.NetworkConnectedEvent { serverAddress = _serverUrl });
+                Debug.Log($"[NetworkClient] Connected to server: {_serverUrl}");
+                EventBus.Raise(new NetworkConnectedEvent { serverAddress = _serverUrl });
 
                 // Send auth
                 Send(new AuthMessage { token = _authToken });
@@ -59,32 +95,33 @@ namespace CRClone.Network
             {
                 Debug.LogError($"[NetworkClient] Connection failed: {e.Message}");
                 _isConnected = false;
-                ScheduleReconnect();
+                _reconnectionManager?.ScheduleReconnect();
             }
         }
 
-        private async System.Threading.Tasks.Task ReceiveLoop()
+        private async Task ReceiveLoop()
         {
             var buffer = new byte[8192];
             var memory = new Memory<byte>(buffer);
 
-            while (_isConnected && _ws.State == System.Net.WebSockets.WebSocketState.Open)
+            while (_isConnected && _ws.State == WebSocketState.Open)
             {
                 try
                 {
-                    var result = await _ws.ReceiveAsync(memory, System.Threading.CancellationToken.None);
+                    var result = await _ws.ReceiveAsync(memory, CancellationToken.None);
                     
-                    if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                    if (result.MessageType == WebSocketMessageType.Close)
                     {
-                        await _ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "", System.Threading.CancellationToken.None);
+                        await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
                         break;
                     }
 
                     if (result.Count > 0)
                     {
+                        // Handle binary protobuf messages
                         var data = new byte[result.Count];
                         Array.Copy(buffer, data, result.Count);
-                        ProcessMessage(data);
+                        ProcessBinaryMessage(data);
                     }
                 }
                 catch (Exception e)
@@ -97,42 +134,14 @@ namespace CRClone.Network
             HandleDisconnect();
         }
 
-        private void ProcessMessage(byte[] data)
+        private void ProcessBinaryMessage(byte[] data)
         {
             try
             {
-                var json = Encoding.UTF8.GetString(data);
-                var baseMsg = Newtonsoft.Json.JsonConvert.DeserializeObject<NetworkMessage>(json);
-
-                switch (baseMsg.type)
+                var message = Serialization.DeserializeByType(data);
+                if (message != null)
                 {
-                    case "auth_response":
-                        HandleAuthResponse(json);
-                        break;
-                    case "battle_found":
-                        HandleBattleFound(json);
-                        break;
-                    case "game_state":
-                        HandleGameState(json);
-                        break;
-                    case "input_ack":
-                        HandleInputAck(json);
-                        break;
-                    case "reconcile":
-                        HandleReconcile(json);
-                        break;
-                    case "battle_end":
-                        HandleBattleEnd(json);
-                        break;
-                    case "error":
-                        HandleError(json);
-                        break;
-                    case "pong":
-                        // Heartbeat response
-                        break;
-                    default:
-                        Debug.LogWarning($"[NetworkClient] Unknown message type: {baseMsg.type}");
-                        break;
+                    HandleMessage(message);
                 }
             }
             catch (Exception e)
@@ -141,12 +150,58 @@ namespace CRClone.Network
             }
         }
 
-        private void HandleAuthResponse(string json)
+        private void HandleMessage(NetworkMessage message)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<AuthResponseMessage>(json);
+            switch (message.type)
+            {
+                case MessageTypes.AuthResponse:
+                    HandleAuthResponse(message as AuthResponseMessage);
+                    break;
+                case MessageTypes.BattleFound:
+                    HandleBattleFound(message as BattleFoundMessage);
+                    break;
+                case MessageTypes.BattleStart:
+                    HandleBattleStart(message as BattleStartMessage);
+                    break;
+                case MessageTypes.GameState:
+                    HandleGameState(message as GameStateMessage);
+                    break;
+                case MessageTypes.InputAck:
+                    HandleInputAck(message as InputAckMessage);
+                    break;
+                case MessageTypes.Reconcile:
+                    HandleReconcile(message as ReconcileMessage);
+                    break;
+                case MessageTypes.BattleEnd:
+                    HandleBattleEnd(message as BattleEndMessage);
+                    break;
+                case MessageTypes.Error:
+                    HandleError(message as ErrorMessage);
+                    break;
+                case MessageTypes.Pong:
+                    // Heartbeat response
+                    break;
+                case "clan_response":
+                case "shop_response":
+                case "quest_response":
+                case "season_response":
+                case "tournament_response":
+                case "replay_response":
+                case "player_response":
+                    HandleAsyncResponse(message);
+                    break;
+                default:
+                    Debug.LogWarning($"[NetworkClient] Unknown message type: {message.type}");
+                    break;
+            }
+        }
+
+        private void HandleAuthResponse(AuthResponseMessage msg)
+        {
             if (msg.success)
             {
-                Debug.Log("[NetworkClient] Authenticated");
+                Debug.Log("[NetworkClient] Authenticated successfully");
+                _reconnectionManager?.SetCredentials(_serverUrl, _authToken);
             }
             else
             {
@@ -155,9 +210,8 @@ namespace CRClone.Network
             }
         }
 
-        private void HandleBattleFound(string json)
+        private void HandleBattleFound(BattleFoundMessage msg)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<BattleFoundMessage>(json);
             var battleData = new GameManager.BattleData
             {
                 battleId = msg.battleId,
@@ -179,15 +233,31 @@ namespace CRClone.Network
                 }
             };
 
+            _reconnectionManager?.SetBattleContext(battleData);
             Services.Get<GameManager>().StartBattle(battleData);
         }
 
-        private void HandleGameState(string json)
+        private void HandleBattleStart(BattleStartMessage msg)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<GameStateMessage>(json);
-            
+            _serverTick = msg.tick;
             _lastAckedTick = msg.tick;
             
+            // Update local simulation with initial state
+            var reconcilEvent = new ReconciliationEvent
+            {
+                serverTick = msg.tick,
+                clientTick = _clientTick,
+                entityCount = 0,
+                fullResync = true
+            };
+            EventBus.Raise(reconcilEvent);
+        }
+
+        private void HandleGameState(GameStateMessage msg)
+        {
+            _serverTick = msg.tick;
+            _lastAckedTick = msg.tick;
+
             // Remove acknowledged inputs
             var toRemove = new List<uint>();
             foreach (var kvp in _sentInputs)
@@ -195,88 +265,113 @@ namespace CRClone.Network
                 if (kvp.Key <= msg.tick)
                     toRemove.Add(kvp.Key);
             }
-            foreach (var tick in toRemove) _sentInputs.Remove(tick);
+            foreach (var tick in toRemove)
+            {
+                _sentInputs.Remove(tick);
+                _inputSentTimes.Remove(tick);
+            }
 
             // Forward to simulation for reconciliation
-            EventBus.Raise(new EventBus.ReconciliationEvent
+            var reconcilEvent = new ReconciliationEvent
             {
                 serverTick = msg.tick,
                 clientTick = _clientTick,
-                entityCount = msg.entities?.Length ?? 0
-            });
+                entityCount = msg.entities?.Length ?? 0,
+                fullResync = false
+            };
+            EventBus.Raise(reconcilEvent);
 
             // TODO: Apply state to BattleSimulation
         }
 
-        private void HandleInputAck(string json)
+        private void HandleInputAck(InputAckMessage msg)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<InputAckMessage>(json);
             _lastAckedTick = msg.ackTick;
-            
+
             var toRemove = new List<uint>();
             foreach (var kvp in _sentInputs)
             {
                 if (kvp.Key <= msg.ackTick)
                     toRemove.Add(kvp.Key);
             }
-            foreach (var tick in toRemove) _sentInputs.Remove(tick);
+            foreach (var tick in toRemove)
+            {
+                _sentInputs.Remove(tick);
+                _inputSentTimes.Remove(tick);
+            }
         }
 
-        private void HandleReconcile(string json)
+        private void HandleReconcile(ReconcileMessage msg)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<ReconcileMessage>(json);
-            // Full state resync
-            EventBus.Raise(new EventBus.ReconciliationEvent
+            // Full state resync requested
+            var reconcilEvent = new ReconciliationEvent
             {
                 serverTick = msg.tick,
                 clientTick = _clientTick,
                 entityCount = msg.entities?.Length ?? 0,
                 fullResync = true
-            });
+            };
+            EventBus.Raise(reconcilEvent);
         }
 
-        private void HandleBattleEnd(string json)
+        private void HandleBattleEnd(BattleEndMessage msg)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<BattleEndMessage>(json);
             var result = new GameManager.BattleResult
             {
                 battleId = msg.battleId,
-                result = (BattleStatus)msg.result,
-                player1Crowns = msg.player1Crowns,
-                player2Crowns = msg.player2Crowns,
-                player1TrophyChange = msg.player1TrophyChange,
-                player2TrophyChange = msg.player2TrophyChange,
-                duration = msg.duration,
-                wentOvertime = msg.wentOvertime,
-                replayId = msg.replayId
+                result = (BattleStatus)Enum.Parse(typeof(BattleStatus), msg.result.winner, true),
+                player1Crowns = msg.result.player1Crowns,
+                player2Crowns = msg.result.player2Crowns,
+                player1TrophyChange = msg.result.player1TrophyChange,
+                player2TrophyChange = msg.result.player2TrophyChange,
+                duration = msg.result.duration,
+                wentOvertime = msg.result.wentOvertime,
+                replayId = msg.result.replayId
             };
 
+            _reconnectionManager?.OnBattleEnd();
             Services.Get<GameManager>().EndBattle(result);
         }
 
-        private void HandleError(string json)
+        private void HandleError(ErrorMessage msg)
         {
-            var msg = Newtonsoft.Json.JsonConvert.DeserializeObject<ErrorMessage>(json);
+            Debug.LogError($"[NetworkClient] Server error: {msg.code} - {msg.message}");
             EventBus.RaiseError(msg.message);
+        }
+
+        private void HandleAsyncResponse(NetworkMessage msg)
+        {
+            if (msg.requestId > 0 && _pendingRequests.TryGetValue(msg.requestId, out var callback))
+            {
+                _pendingRequests.Remove(msg.requestId);
+                callback?.Invoke(msg);
+            }
         }
 
         public void SendInput(PlayerInput input)
         {
+            if (!IsConnected) return;
+
             input.clientTick = _clientTick;
             _pendingInputs.Enqueue(input);
         }
 
-        public void Send(NetworkMessage message)
+        public void Send<T>(T message) where T : NetworkMessage
         {
             if (!IsConnected) return;
 
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(message);
-            var data = Encoding.UTF8.GetBytes(json);
-            _ = _ws.SendAsync(new ArraySegment<byte>(data), System.Net.WebSockets.WebSocketMessageType.Text, true, System.Threading.CancellationToken.None);
+            var data = Serialization.Serialize(message);
+            _ = SendBinaryAsync(data);
         }
 
         public void SendRequest<TResponse>(NetworkMessage request, Action<TResponse> callback) where TResponse : NetworkMessage
         {
+            if (!IsConnected)
+            {
+                callback?.Invoke(null);
+                return;
+            }
+
             uint id = ++_requestId;
             request.requestId = id;
             
@@ -288,15 +383,29 @@ namespace CRClone.Network
             Send(request);
         }
 
+        private async Task SendBinaryAsync(byte[] data)
+        {
+            try
+            {
+                await _ws.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, CancellationToken.None);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[NetworkClient] Send error: {e.Message}");
+                HandleDisconnect();
+            }
+        }
+
         private void Update()
         {
             if (!IsConnected) return;
 
             // Send pending inputs
-            while (_pendingInputs.Count > 0)
+            while (_pendingInputs.Count > 0 && _sentInputs.Count < MAX_PENDING_INPUTS)
             {
                 var input = _pendingInputs.Dequeue();
                 _sentInputs[_clientTick] = input;
+                _inputSentTimes[_clientTick] = Time.time;
                 
                 var msg = new InputMessage
                 {
@@ -321,8 +430,31 @@ namespace CRClone.Network
 
         private void CheckRetransmission()
         {
-            const float RETRANSMIT_TIMEOUT = 1f; // 1 second
-            // In a real implementation, track send times and retransmit unacknowledged inputs
+            var now = Time.time;
+            var toRetransmit = new List<uint>();
+
+            foreach (var kvp in _inputSentTimes)
+            {
+                if (now - kvp.Value > RETRANSMIT_TIMEOUT && kvp.Key > _lastAckedTick)
+                {
+                    toRetransmit.Add(kvp.Key);
+                }
+            }
+
+            foreach (var tick in toRetransmit)
+            {
+                if (_sentInputs.TryGetValue(tick, out var input))
+                {
+                    _inputSentTimes[tick] = now;
+                    var msg = new InputMessage
+                    {
+                        tick = tick,
+                        input = input
+                    };
+                    Send(msg);
+                    Debug.Log($"[NetworkClient] Retransmitted input for tick {tick}");
+                }
+            }
         }
 
         private void HandleDisconnect()
@@ -330,20 +462,15 @@ namespace CRClone.Network
             _isConnected = false;
             string reason = "Connection lost";
             Debug.Log($"[NetworkClient] Disconnected: {reason}");
-            EventBus.Raise(new EventBus.NetworkDisconnectedEvent { reason = reason, wasClean = false });
-            ScheduleReconnect();
-        }
-
-        private void ScheduleReconnect()
-        {
-            _reconnectTimer = RECONNECT_DELAY;
+            EventBus.Raise(new NetworkDisconnectedEvent { reason = reason, wasClean = false });
+            _reconnectionManager?.ScheduleReconnect();
         }
 
         public void Disconnect()
         {
-            if (_ws != null && _ws.State == System.Net.WebSockets.WebSocketState.Open)
+            if (_ws != null && _ws.State == WebSocketState.Open)
             {
-                _ = _ws.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "Client disconnect", System.Threading.CancellationToken.None);
+                _ = _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client disconnect", CancellationToken.None);
             }
             _isConnected = false;
         }
@@ -356,148 +483,24 @@ namespace CRClone.Network
             }
         }
 
-        // Message classes
-        [Serializable]
-        public class NetworkMessage
+        // Async message sending for non-gameplay messages
+        public async Task<TResponse> SendRequestAsync<TResponse>(NetworkMessage request, float timeout = 10f) where TResponse : NetworkMessage
         {
-            public string type;
-            public uint requestId;
-            public uint tick;
-        }
+            var tcs = new TaskCompletionSource<TResponse>();
+            
+            SendRequest<TResponse>(request, (response) => {
+                tcs.SetResult(response);
+            });
 
-        [Serializable]
-        public class AuthMessage : NetworkMessage
-        {
-            public string token;
-        }
-
-        [Serializable]
-        public class AuthResponseMessage : NetworkMessage
-        {
-            public bool success;
-            public string error;
-        }
-
-        [Serializable]
-        public class BattleFoundMessage : NetworkMessage
-        {
-            public long battleId;
-            public int battleType;
-            public ulong seed;
-            public PlayerInfo player1;
-            public PlayerInfo player2;
-
-            [Serializable]
-            public class PlayerInfo
+            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(timeout)));
+            if (completedTask == tcs.Task)
             {
-                public long playerId;
-                public string username;
-                public int trophies;
-                public int[] deck;
+                return tcs.Task.Result;
             }
-        }
-
-        [Serializable]
-        public class InputMessage : NetworkMessage
-        {
-            public PlayerInput input;
-        }
-
-        [Serializable]
-        public class GameStateMessage : NetworkMessage
-        {
-            public uint tick;
-            public EntityState[] entities;
-            public ProjectileState[] projectiles;
-            public PlayerState player1;
-            public PlayerState player2;
-            public BattleStatus status;
-        }
-
-        [Serializable]
-        public class InputAckMessage : NetworkMessage
-        {
-            public uint ackTick;
-        }
-
-        [Serializable]
-        public class ReconcileMessage : NetworkMessage
-        {
-            public uint tick;
-            public EntityState[] entities;
-        }
-
-        [Serializable]
-        public class BattleEndMessage : NetworkMessage
-        {
-            public long battleId;
-            public int result;
-            public int player1Crowns;
-            public int player2Crowns;
-            public int player1TrophyChange;
-            public int player2TrophyChange;
-            public float duration;
-            public bool wentOvertime;
-            public long replayId;
-        }
-
-        [Serializable]
-        public class ErrorMessage : NetworkMessage
-        {
-            public string message;
-        }
-
-        [Serializable]
-        public class HeartbeatMessage : NetworkMessage { }
-
-        [Serializable]
-        public class PlayerInput
-        {
-            public uint clientTick;
-            public int cardId;
-            public Vector2 position;
-            public int spellId;
-            public Vector2 targetPosition;
-            public InputType type;
-        }
-
-        public enum InputType
-        {
-            PlayCard,
-            CastSpell,
-            UseChampionAbility,
-            Emote
-        }
-
-        [Serializable]
-        public class EntityState
-        {
-            public uint id;
-            public int type;
-            public int owner;
-            public Vector2 position;
-            public Vector2 velocity;
-            public int hp;
-            public uint targetId;
-        }
-
-        [Serializable]
-        public class ProjectileState
-        {
-            public uint id;
-            public int type;
-            public int owner;
-            public Vector2 position;
-            public Vector2 velocity;
-            public uint targetId;
-        }
-
-        [Serializable]
-        public class PlayerState
-        {
-            public int elixir;
-            public int[] hand;
-            public int nextCardIndex;
+            else
+            {
+                throw new TimeoutException($"Request timed out after {timeout}s");
+            }
         }
     }
 }
