@@ -333,7 +333,37 @@ namespace CRClone.Battle.Simulation
                 }
             }
 
+            // Footprint-overlap rejection (MECHANICS.md deploy rules, GAP-1.4).
+            // Spells stay exempt (returned earlier). Towers/buildings/units block.
+            float newRadius = card.type == CardType.Building ? GetBuildingFootprintRadius(card.cardName) : 0.5f;
+            foreach (var b in _buildings)
+            {
+                if (b.IsDead) continue;
+                if (Vector2.Distance(position, b.Position) < newRadius + b.CollisionRadius) return false;
+            }
+            foreach (var t in _towers)
+            {
+                if (t.IsDead) continue;
+                if (Vector2.Distance(position, t.Position) < newRadius + t.CollisionRadius) return false;
+            }
+            foreach (var u in _units)
+            {
+                if (u.IsDead) continue;
+                if (Vector2.Distance(position, u.Position) < newRadius + u.CollisionRadius) return false;
+            }
+
             return true;
+        }
+
+        private float GetBuildingFootprintRadius(string cardName)
+        {
+            return cardName switch
+            {
+                "X-Bow" => 2f,      // 4x4
+                "Mortar" => 2f,     // 4x4
+                "Elixir Collector" => 1.5f, // 3x3
+                _ => 1f             // 2x2 default
+            };
         }
 
         public void SpawnUnit(CardData card, int playerId, Vector2 position, int level)
@@ -769,22 +799,24 @@ namespace CRClone.Battle.Simulation
 
             foreach (var tower in _towers)
             {
+                // Crowns earned = enemy towers destroyed.
                 if (tower.OwnerPlayerId == 1)
                 {
                     if (tower.Type == TowerType.King && tower.IsDead) p1KingDead = true;
-                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) { p1PrincessLeftDead = true; p1Crowns++; }
-                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p1PrincessRightDead = true; p1Crowns++; }
+                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) { p1PrincessLeftDead = true; p2Crowns++; }
+                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p1PrincessRightDead = true; p2Crowns++; }
                 }
                 else
                 {
                     if (tower.Type == TowerType.King && tower.IsDead) p2KingDead = true;
-                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) { p2PrincessLeftDead = true; p2Crowns++; }
-                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p2PrincessRightDead = true; p2Crowns++; }
+                    if (tower.Type == TowerType.PrincessLeft && tower.IsDead) { p2PrincessLeftDead = true; p1Crowns++; }
+                    if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p2PrincessRightDead = true; p1Crowns++; }
                 }
             }
 
             bool isOvertime = _currentTick >= _config.battleDuration * TICK_RATE;
             float battleEndTime = (_config.battleDuration + _config.overtimeDuration) * TICK_RATE;
+            bool pastOvertimeEnd = _currentTick >= battleEndTime;
 
             BattleStatus newStatus = _status;
 
@@ -795,23 +827,42 @@ namespace CRClone.Battle.Simulation
                 p1Crowns = p1KingDead ? 0 : 3;
                 p2Crowns = p2KingDead ? 0 : 3;
             }
-            else if (isOvertime)
+            else if (!isOvertime)
             {
-                // Overtime: sudden death - first tower destroyed wins
-                if (p1Crowns > 0 || p2Crowns > 0)
+                // Regulation time still running: keep playing.
+                newStatus = BattleStatus.Playing;
+            }
+            else if (!pastOvertimeEnd)
+            {
+                // Regulation-expiry crown compare + overtime sudden death (GAP-1.5):
+                // the moment regulation ends with unequal crowns, the leader wins
+                // immediately; any later first-tower-destroyed during overtime wins.
+                if (p1Crowns != p2Crowns)
                 {
                     newStatus = p1Crowns > p2Crowns ? BattleStatus.Player1Won : BattleStatus.Player2Won;
                 }
-                else if (_currentTick >= battleEndTime)
-                {
-                    // Overtime timeout = draw
-                    newStatus = BattleStatus.Draw;
-                }
             }
-            else if (_currentTick >= battleEndTime)
+            else
             {
-                // Normal time ended with no winner = draw (shouldn't happen but safe)
-                newStatus = BattleStatus.Draw;
+                // Overtime timeout: lowest-tower-HP tiebreak (GAP-1.5).
+                // Sum surviving tower HP per side; higher total wins; exact equal = draw.
+                if (p1Crowns != p2Crowns)
+                {
+                    newStatus = p1Crowns > p2Crowns ? BattleStatus.Player1Won : BattleStatus.Player2Won;
+                }
+                else
+                {
+                    float hp1 = 0f, hp2 = 0f;
+                    foreach (var tower in _towers)
+                    {
+                        if (tower.IsDead) continue;
+                        if (tower.OwnerPlayerId == 1) hp1 += tower.CurrentHP;
+                        else hp2 += tower.CurrentHP;
+                    }
+                    if (hp1 > hp2) newStatus = BattleStatus.Player1Won;
+                    else if (hp2 > hp1) newStatus = BattleStatus.Player2Won;
+                    else newStatus = BattleStatus.Draw;
+                }
             }
 
             if (newStatus != _status && newStatus != BattleStatus.Playing)
