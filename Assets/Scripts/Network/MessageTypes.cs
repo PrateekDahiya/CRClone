@@ -302,10 +302,11 @@ namespace CRClone.Network
         [ProtoMember(103)] public PlayerState player2 { get; set; }
     }
 
-    // Clan (placeholder)
+    // Clan
     [ProtoContract]
     public class ClanMessage : NetworkMessage
     {
+        public ClanMessage() { type = MessageTypes.Clan; }
         [ProtoMember(200)] public string action { get; set; }
         [ProtoMember(201)] public byte[] data { get; set; }
     }
@@ -313,15 +314,17 @@ namespace CRClone.Network
     [ProtoContract]
     public class ClanResponseMessage : NetworkMessage
     {
+        public ClanResponseMessage() { type = MessageTypes.ClanResponse; }
         [ProtoMember(200)] public string action { get; set; }
         [ProtoMember(201)] public bool success { get; set; }
         [ProtoMember(202)] public byte[] data { get; set; }
     }
 
-    // Shop (placeholder)
+    // Shop
     [ProtoContract]
     public class ShopMessage : NetworkMessage
     {
+        public ShopMessage() { type = MessageTypes.Shop; }
         [ProtoMember(300)] public string action { get; set; }
         [ProtoMember(301)] public byte[] data { get; set; }
     }
@@ -329,14 +332,16 @@ namespace CRClone.Network
     [ProtoContract]
     public class ShopResponseMessage : NetworkMessage
     {
+        public ShopResponseMessage() { type = MessageTypes.ShopResponse; }
         [ProtoMember(300)] public string action { get; set; }
         [ProtoMember(301)] public byte[] data { get; set; }
     }
 
-    // Quest (placeholder)
+    // Quest
     [ProtoContract]
     public class QuestMessage : NetworkMessage
     {
+        public QuestMessage() { type = MessageTypes.Quest; }
         [ProtoMember(400)] public string action { get; set; }
         [ProtoMember(401)] public byte[] data { get; set; }
     }
@@ -344,14 +349,16 @@ namespace CRClone.Network
     [ProtoContract]
     public class QuestResponseMessage : NetworkMessage
     {
+        public QuestResponseMessage() { type = MessageTypes.QuestResponse; }
         [ProtoMember(400)] public string action { get; set; }
         [ProtoMember(401)] public byte[] data { get; set; }
     }
 
-    // Season (placeholder)
+    // Season
     [ProtoContract]
     public class SeasonMessage : NetworkMessage
     {
+        public SeasonMessage() { type = MessageTypes.Season; }
         [ProtoMember(500)] public string action { get; set; }
         [ProtoMember(501)] public byte[] data { get; set; }
     }
@@ -359,14 +366,16 @@ namespace CRClone.Network
     [ProtoContract]
     public class SeasonResponseMessage : NetworkMessage
     {
+        public SeasonResponseMessage() { type = MessageTypes.SeasonResponse; }
         [ProtoMember(500)] public string action { get; set; }
         [ProtoMember(501)] public byte[] data { get; set; }
     }
 
-    // Tournament (placeholder)
+    // Tournament
     [ProtoContract]
     public class TournamentMessage : NetworkMessage
     {
+        public TournamentMessage() { type = MessageTypes.Tournament; }
         [ProtoMember(600)] public string action { get; set; }
         [ProtoMember(601)] public byte[] data { get; set; }
     }
@@ -374,14 +383,16 @@ namespace CRClone.Network
     [ProtoContract]
     public class TournamentResponseMessage : NetworkMessage
     {
+        public TournamentResponseMessage() { type = MessageTypes.TournamentResponse; }
         [ProtoMember(600)] public string action { get; set; }
         [ProtoMember(601)] public byte[] data { get; set; }
     }
 
-    // Replay (placeholder)
+    // Replay
     [ProtoContract]
     public class ReplayMessage : NetworkMessage
     {
+        public ReplayMessage() { type = MessageTypes.Replay; }
         [ProtoMember(700)] public string action { get; set; }
         [ProtoMember(701)] public byte[] data { get; set; }
     }
@@ -389,14 +400,16 @@ namespace CRClone.Network
     [ProtoContract]
     public class ReplayResponseMessage : NetworkMessage
     {
+        public ReplayResponseMessage() { type = MessageTypes.ReplayResponse; }
         [ProtoMember(700)] public string action { get; set; }
         [ProtoMember(701)] public byte[] data { get; set; }
     }
 
-    // Player (placeholder)
+    // Player
     [ProtoContract]
     public class PlayerMessage : NetworkMessage
     {
+        public PlayerMessage() { type = MessageTypes.Player; }
         [ProtoMember(800)] public string action { get; set; }
         [ProtoMember(801)] public byte[] data { get; set; }
     }
@@ -404,11 +417,16 @@ namespace CRClone.Network
     [ProtoContract]
     public class PlayerResponseMessage : NetworkMessage
     {
+        public PlayerResponseMessage() { type = MessageTypes.PlayerResponse; }
         [ProtoMember(800)] public string action { get; set; }
         [ProtoMember(801)] public byte[] data { get; set; }
     }
 
     // Helper to identify message types
+    // NOTE: this set is the wire-contract source of truth for the client.
+    // Every constant here must have a matching proto message in
+    // server/src/network/protocol.proto and a matching entry in
+    // server/src/network/Protocol.ts MessageType (see protocol-contract test).
     public static class MessageTypes
     {
         public const string Auth = "auth";
@@ -427,5 +445,19 @@ namespace CRClone.Network
         public const string Pong = "pong";
         public const string SaveDeck = "save_deck";
         public const string DeckSaved = "deck_saved";
+        public const string Clan = "clan";
+        public const string ClanResponse = "clan_response";
+        public const string Shop = "shop";
+        public const string ShopResponse = "shop_response";
+        public const string Quest = "quest";
+        public const string QuestResponse = "quest_response";
+        public const string Season = "season";
+        public const string SeasonResponse = "season_response";
+        public const string Tournament = "tournament";
+        public const string TournamentResponse = "tournament_response";
+        public const string Replay = "replay";
+        public const string ReplayResponse = "replay_response";
+        public const string Player = "player";
+        public const string PlayerResponse = "player_response";
     }
 }
