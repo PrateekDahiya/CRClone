@@ -12,17 +12,11 @@ Agents 1–6 claim various levels of completion. **Do not trust claims, file lis
 
 ## 🌿 GIT WORKTREE SETUP
 ```bash
-git worktree add ../CRClone-agent8 feature/progress-verification
+# All agent work is already merged to master. Review master directly:
+git worktree add ../CRClone-agent8 master
 cd ../CRClone-agent8
-git fetch origin
-# Merge all agent branches so you see everything:
-git merge origin/feature/battle-simulation-core --no-commit 2>/dev/null || true
-git merge origin/feature/networking-multiplayer --no-commit 2>/dev/null || true
-git merge origin/feature/ui-ux-implementation --no-commit 2>/dev/null || true
-git merge origin/feature/asset-pipeline-card-db --no-commit 2>/dev/null || true
-git merge origin/feature/database-backend-services --no-commit 2>/dev/null || true
-git merge origin/feature/testing-ci-cd --no-commit 2>/dev/null || true
-# Resolve conflicts by taking union (you only READ, never commit this merge)
+git pull origin master   # Ensure you have the latest merged state
+# Do NOT merge any feature branches — everything you need is on master.
 ```
 
 ---
@@ -222,9 +216,10 @@ Write your findings to **`VERIFICATION_REPORT_<YYYYMMDD_HHMM>.md`** in the repo 
 ## 📋 QUICK START
 
 ```bash
-# 1. Setup
-git worktree add ../CRClone-agent8 feature/progress-verification
+# 1. Setup (all work already merged to master — review it directly)
+git worktree add ../CRClone-agent8 master
 cd ../CRClone-agent8
+git pull origin master
 
 # 2. Verify per agent (read code, don't trust lists)
 # Agent 1: Read BattleSimulation.cs Tick() order, grep UnityEngine.Random in Simulation/
