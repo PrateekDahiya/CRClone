@@ -1,0 +1,30 @@
+groups:
+  - name: crclone
+    rules:
+      - alert: HighDesyncRate
+        expr: crclone_desync_rate > 0.01
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Desync rate above 1%'
+
+      - alert: BattleServersDown
+        expr: up{job="game-servers"} == 0
+        for: 30s
+        labels: { severity: critical }
+        annotations:
+          summary: 'Game server down'
+
+      - alert: HighMemoryUsage
+        expr: crclone_memory_usage_bytes / 2147483648 > 0.9
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Memory usage above 90%'
+
+      - alert: MatchmakingQueueBackup
+        expr: crclone_matchmaking_queue_size > 500
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Matchmaking queue backing up'

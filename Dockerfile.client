@@ -1,0 +1,12 @@
+# Unity Linux headless client image (built artifacts copied in by CI)
+FROM ubuntu:22.04 AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libglu1-mesa libxcursor1 libxrandr2 libxi6 \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY ./build/CRClone-Linux/ /app/
+
+EXPOSE 8080
+CMD ["./CRClone.x86_64", "-batchmode", "-nographics"]

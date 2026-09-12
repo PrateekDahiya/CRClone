@@ -1,0 +1,348 @@
+version: '3.8'
+
+services:
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: crclone-prod-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - server-1
+      - server-2
+      - server-3
+    networks:
+      - crclone-prod-frontend
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Game Servers (3 replicas)
+  server-1:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: production
+    container_name: crclone-prod-server-1
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      WS_PORT: 3001
+      DB_HOST: mysql-primary
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-crclone}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL: "true"
+      REDIS_HOST: redis-cluster
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: info
+      SERVER_ID: server-1
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    networks:
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  server-2:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: production
+    container_name: crclone-prod-server-2
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      WS_PORT: 3001
+      DB_HOST: mysql-primary
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-crclone}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL: "true"
+      REDIS_HOST: redis-cluster
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: info
+      SERVER_ID: server-2
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    networks:
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  server-3:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: production
+    container_name: crclone-prod-server-3
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      WS_PORT: 3001
+      DB_HOST: mysql-primary
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-crclone}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL: "true"
+      REDIS_HOST: redis-cluster
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      LOG_LEVEL: info
+      SERVER_ID: server-3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    networks:
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # MySQL Primary
+  mysql-primary:
+    image: mysql:8.0
+    container_name: crclone-prod-mysql-primary
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-crclone}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_primary_data:/var/lib/mysql
+      - ./server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql/conf.d:/etc/mysql/conf.d:ro
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --innodb-buffer-pool-size=2G
+      - --max-connections=500
+      - --log-bin=mysql-bin
+      - --server-id=1
+      - --binlog-format=ROW
+    networks:
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # MySQL Replica (read replica)
+  mysql-replica:
+    image: mysql:8.0
+    container_name: crclone-prod-mysql-replica
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_replica_data:/var/lib/mysql
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --innodb-buffer-pool-size=1G
+      - --max-connections=300
+      - --server-id=2
+      - --relay-log=relay-bin
+      - --log-replica-updates=ON
+      - --read-only=ON
+    networks:
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    depends_on:
+      - mysql-primary
+
+  # Redis Cluster (3 masters + 3 replicas)
+  redis-cluster:
+    image: redis:7-alpine
+    container_name: crclone-prod-redis-cluster
+    command: redis-server /usr/local/etc/redis/redis-cluster.conf
+    volumes:
+      - ./redis/redis-cluster.conf:/usr/local/etc/redis/redis-cluster.conf:ro
+      - redis_cluster_data:/data
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7002:7002"
+      - "7003:7003"
+      - "7004:7004"
+      - "7005:7005"
+    networks:
+      - crclone-prod-backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "-c", "-p", "7000", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: crclone-prod-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - crclone-prod-backend
+      - crclone-prod-monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: crclone-prod-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - crclone-prod-monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - prometheus
+
+  # Alertmanager
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: crclone-prod-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - crclone-prod-monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_primary_data:
+  mysql_replica_data:
+  redis_cluster_data:
+  nginx_cache:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  crclone-prod-frontend:
+    driver: bridge
+  crclone-prod-backend:
+    driver: bridge
+  crclone-prod-monitoring:
+    driver: bridge

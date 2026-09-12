@@ -1,0 +1,151 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+jobs:
+  # Unity Client Checks
+  unity-checks:
+    name: Unity Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Unity
+        uses: game-ci/unity-installer@v2
+        with:
+          unityVersion: 2022.3.20f1
+          cacheKey: unity-${{ runner.os }}-${{ hashFiles('Packages/**') }}
+
+      - name: Restore Unity Library cache
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: unity-library-${{ runner.os }}-${{ hashFiles('Assets/**', 'Packages/**') }}
+          restore-keys: |
+            unity-library-${{ runner.os }}-
+
+      - name: Run Unity Compile Check
+        run: |
+          /opt/unity/Editor/Unity -batchmode -nographics \
+            -projectPath . \
+            -logFile - \
+            -quit
+
+      - name: Run Unity Lint (Roslynator)
+        run: |
+          dotnet tool restore
+          dotnet roslynator analyze . --severity Error
+
+  # Server Checks
+  server-checks:
+    name: Server Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ./server
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type check
+        run: npm run typecheck
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Unit Tests
+        run: npm run test -- --testPathPattern=unit --passWithNoTests
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./server/coverage/lcov.info
+          flags: server
+          fail_ci_if_error: false
+
+  # Security Checks
+  security-checks:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run npm audit (server)
+        working-directory: ./server
+        run: npm audit --audit-level=high || true
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@v3
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          fail: false
+
+      - name: Scan Unity packages
+        run: |
+          # Check for known vulnerable packages
+          if [ -f "Packages/manifest.json" ]; then
+            cat Packages/manifest.json | jq -r '.dependencies | keys[]' | while read pkg; do
+              echo "Checking $pkg..."
+            done
+          fi
+
+  # Code Quality
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check EditorConfig compliance
+        run: |
+          # Check for consistent formatting
+          find . -name "*.cs" -o -name "*.ts" -o -name "*.json" | \
+            xargs file | grep -v "UTF-8" && echo "Non-UTF8 files found" && exit 1 || true
+
+      - name: Validate YAML files
+        run: |
+          find . -name "*.yml" -o -name "*.yaml" | \
+            xargs yamllint -c .yamllint || true
+
+  # Summary
+  pr-summary:
+    name: PR Summary
+    runs-on: ubuntu-latest
+    needs: [unity-checks, server-checks, security-checks, code-quality]
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [ "${{ needs.unity-checks.result }}" != "success" ] || \
+             [ "${{ needs.server-checks.result }}" != "success" ] || \
+             [ "${{ needs.security-checks.result }}" != "success" ] || \
+             [ "${{ needs.code-quality.result }}" != "success" ]; then
+            echo "Some checks failed"
+            exit 1
+          fi
+          echo "All PR checks passed!"

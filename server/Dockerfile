@@ -13,6 +13,20 @@ COPY . .
 # Build
 RUN npm run build
 
+# Test stage (dev deps + source for running jest / ts-node)
+FROM node:20-alpine AS test
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+EXPOSE 3000 3001
+
+CMD ["npm", "run", "dev"]
+
 # Production stage
 FROM node:20-alpine AS production
 

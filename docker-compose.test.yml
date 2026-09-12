@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: crclone-test-mysql
+    environment:
+      MYSQL_DATABASE: crclone_test
+      MYSQL_ROOT_PASSWORD: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+    ports:
+      - "3307:3306"
+    volumes:
+      - test_mysql_data:/var/lib/mysql
+      - ./server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crclone-test-network
+    tmpfs:
+      - /var/lib/mysql  # Use tmpfs for faster tests
+
+  redis:
+    image: redis:7-alpine
+    container_name: crclone-test-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - test_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - crclone-test-network
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: test
+    container_name: crclone-test-server
+    environment:
+      NODE_ENV: test
+      PORT: 3000
+      WS_PORT: 3001
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: crclone_test
+      DB_USERNAME: root
+      DB_PASSWORD: test
+      DB_SSL: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: test-secret-change-in-production
+      LOG_LEVEL: debug
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server/src:/app/src
+      - ./server/package.json:/app/package.json
+      - ./server/tsconfig.json:/app/tsconfig.json
+    networks:
+      - crclone-test-network
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  unity-test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.unity-test
+    container_name: crclone-test-unity
+    environment:
+      UNITY_LICENSE: ${UNITY_LICENSE}
+      TEST_PLATFORM: EditMode
+    volumes:
+      - ./Assets:/project/Assets
+      - ./Packages:/project/Packages
+      - ./ProjectSettings:/project/ProjectSettings
+      - ./Tests:/project/Tests
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - crclone-test-network
+    command: >
+      /opt/unity/Editor/Unity -batchmode -nographics
+        -projectPath /project
+        -runTests
+        -testPlatform EditMode
+        -testResults /project/test-results.xml
+        -logFile -
+        -quit
+
+  # Optional: Playwright for E2E
+  playwright:
+    build:
+      context: ./e2e
+      dockerfile: Dockerfile.playwright
+    container_name: crclone-test-playwright
+    environment:
+      BASE_URL: http://server:3000
+      WS_URL: ws://server:3001
+    volumes:
+      - ./e2e:/app
+      - ./build:/app/build
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - crclone-test-network
+    command: npx playwright test --reporter=html
+    profiles:
+      - e2e
+
+volumes:
+  test_mysql_data:
+  test_redis_data:
+
+networks:
+  crclone-test-network:
+    driver: bridge
