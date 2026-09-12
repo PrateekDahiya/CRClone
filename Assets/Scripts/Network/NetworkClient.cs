@@ -281,7 +281,8 @@ namespace CRClone.Network
             };
             EventBus.Raise(reconcilEvent);
 
-            // TODO: Apply state to BattleSimulation
+            // Apply the authoritative snapshot to the local simulation.
+            ApplyAuthoritativeState(msg, fullResync: false);
         }
 
         private void HandleInputAck(InputAckMessage msg)
@@ -312,6 +313,147 @@ namespace CRClone.Network
                 fullResync = true
             };
             EventBus.Raise(reconcilEvent);
+
+            // Server-initiated full resync: apply unconditionally.
+            ApplyAuthoritativeState(msg);
+        }
+
+        // Applies an authoritative GameState snapshot to the local simulation:
+        // entity positions, HP, elixir and tick. With fullResync the whole
+        // snapshot is applied; otherwise a hash comparison between the local
+        // entities and the server subset decides whether a full apply is needed
+        // (desync detector, same algorithm as the server ReplayRecorder hash).
+        // In both cases inputs at/above the acked tick are re-applied from the
+        // local queue so prediction resumes from the authoritative state.
+        public void ApplyAuthoritativeState(GameStateMessage msg, bool fullResync)
+        {
+            if (msg == null) return;
+
+            _serverTick = msg.tick;
+            _lastAckedTick = Math.Max(_lastAckedTick, msg.tick);
+            PruneAckedInputs(msg.tick);
+
+            var sim = GetSimulation();
+            if (sim != null)
+            {
+                // Authoritative elixir always converges immediately.
+                if (msg.player1 != null && sim.Player1 != null)
+                    sim.Player1.Elixir = msg.player1.elixir;
+                if (msg.player2 != null && sim.Player2 != null)
+                    sim.Player2.Elixir = msg.player2.elixir;
+
+                bool desync = fullResync;
+                if (!desync && msg.entities != null && msg.entities.Length > 0)
+                {
+                    desync = ServerSubsetDisagrees(sim, msg.entities);
+                    if (desync)
+                    {
+                        Debug.LogWarning($"[NetworkClient] Desync detected at server tick {msg.tick}: " +
+                                         "local entity hash disagrees with server hash. Applying full snapshot.");
+                    }
+                }
+
+                if (desync)
+                {
+                    int applied = Reconciler.ApplySnapshot(sim, msg);
+                    Debug.Log($"[NetworkClient] Reconciled to server tick {msg.tick} " +
+                              $"(fullResync={fullResync}, entities applied={applied})");
+                }
+            }
+
+            _reconnectionManager?.UpdateLastKnownTick(msg.tick);
+            RequeueUnackedInputs();
+        }
+
+        // Full-resync entry point for ReconcileMessage.
+        public void ApplyAuthoritativeState(ReconcileMessage msg)
+        {
+            if (msg == null) return;
+
+            _serverTick = msg.tick;
+            _lastAckedTick = Math.Max(_lastAckedTick, msg.tick);
+            PruneAckedInputs(msg.tick);
+
+            var sim = GetSimulation();
+            if (sim != null && msg.entities != null)
+            {
+                int applied = Reconciler.ApplySnapshot(sim, msg);
+                Debug.Log($"[NetworkClient] Full resync to server tick {msg.tick} (entities applied={applied})");
+            }
+
+            _reconnectionManager?.UpdateLastKnownTick(msg.tick);
+            RequeueUnackedInputs();
+        }
+
+        // Compares the local entities against an authoritative server subset
+        // using the shared entity-hash algorithm (order-independent).
+        private bool ServerSubsetDisagrees(CRClone.Battle.Simulation.BattleSimulation sim, EntityState[] serverEntities)
+        {
+            var serverHash = Reconciler.ComputeEntityHash(serverEntities);
+
+            var localSubset = new List<EntityState>(serverEntities.Length);
+            foreach (var s in serverEntities)
+            {
+                var local = sim.GetEntity(s.id);
+                if (local == null) return true;
+                localSubset.Add(Reconciler.ToEntityState(local));
+            }
+
+            var localHash = Reconciler.ComputeEntityHash(localSubset);
+            return !string.Equals(serverHash, localHash, StringComparison.Ordinal);
+        }
+
+        // Hash of the full local simulation state (observability / tests).
+        public string ComputeLocalEntityHash()
+        {
+            var sim = GetSimulation();
+            if (sim == null) return "0";
+
+            var states = new List<EntityState>();
+            foreach (var u in sim.Units) states.Add(Reconciler.ToEntityState(u));
+            foreach (var b in sim.Buildings) states.Add(Reconciler.ToEntityState(b));
+            foreach (var p in sim.Projectiles) states.Add(Reconciler.ToEntityState(p));
+            foreach (var t in sim.Towers) states.Add(Reconciler.ToEntityState(t));
+            return Reconciler.ComputeEntityHash(states);
+        }
+
+        private CRClone.Battle.Simulation.BattleSimulation GetSimulation()
+        {
+            return Services.Get<GameManager>()?.BattleSim;
+        }
+
+        private void PruneAckedInputs(uint ackTick)
+        {
+            var toRemove = new List<uint>();
+            foreach (var kvp in _sentInputs)
+            {
+                if (kvp.Key <= ackTick)
+                    toRemove.Add(kvp.Key);
+            }
+            foreach (var tick in toRemove)
+            {
+                _sentInputs.Remove(tick);
+                _inputSentTimes.Remove(tick);
+            }
+        }
+
+        // Moves unacknowledged sent inputs back to the pending queue so they
+        // are re-applied from _lastAckedTick after a reconciliation.
+        private void RequeueUnackedInputs()
+        {
+            var requeue = new List<uint>();
+            foreach (var kvp in _sentInputs)
+            {
+                if (kvp.Key > _lastAckedTick)
+                    requeue.Add(kvp.Key);
+            }
+            requeue.Sort();
+            foreach (var tick in requeue)
+            {
+                _pendingInputs.Enqueue(_sentInputs[tick]);
+                _sentInputs.Remove(tick);
+                _inputSentTimes.Remove(tick);
+            }
         }
 
         private void HandleBattleEnd(BattleEndMessage msg)

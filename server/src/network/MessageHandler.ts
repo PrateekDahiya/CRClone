@@ -43,6 +43,9 @@ export class MessageHandler {
         case 'input':
           this.handleInput(client, message as InputMessage);
           break;
+        case 'input_ack':
+          this.handleInputAck(client, message as any);
+          break;
         case 'save_deck':
           this.handleSaveDeck(client, message as SaveDeckRequest);
           break;
@@ -133,14 +136,40 @@ export class MessageHandler {
   }
 
   private handleInput(client: NetworkClient, message: InputMessage): void {
+    // Reject unauthenticated senders before touching any battle state.
+    if (!client.authenticated || !client.player) {
+      logger.warn('Input rejected: not authenticated', { clientId: client.id });
+      client.sendError('NOT_AUTHENTICATED');
+      return;
+    }
+
+    if (!message.input || typeof message.input.type !== 'string') {
+      logger.warn('Input rejected: malformed payload', { clientId: client.id });
+      client.sendError('INVALID_INPUT');
+      return;
+    }
+
     if (!client.battleId) {
       logger.warn('Input received but client not in battle', { clientId: client.id });
+      client.sendError('NOT_IN_BATTLE');
       return;
     }
 
     const battle = this.battles.get(client.battleId);
     if (!battle) {
       logger.warn('Battle not found for input', { battleId: client.battleId, clientId: client.id });
+      client.sendError('BATTLE_NOT_FOUND');
+      return;
+    }
+
+    // Reject forged battleIds: the sender must be a participant of the battle.
+    if (!battle.hasPlayer(client.player.id)) {
+      logger.warn('Input rejected: sender not in battle', {
+        clientId: client.id,
+        playerId: client.player.id,
+        battleId: client.battleId,
+      });
+      client.sendError('NOT_IN_BATTLE');
       return;
     }
 
@@ -153,7 +182,49 @@ export class MessageHandler {
       clientTick: message.input.clientTick,
     };
 
-    battle.handleInput(client.player!.id, input);
+    // Track the received input for the per-tick retransmit pass
+    // (mirrors the index.ts queueInput path).
+    if (typeof (client as any).queueInput === 'function') {
+      client.queueInput(input);
+    }
+
+    battle.handleInput(client.player.id, input);
+  }
+
+  private handleInputAck(client: NetworkClient, message: any): void {
+    if (!client.authenticated || !client.player) {
+      client.sendError('NOT_AUTHENTICATED');
+      return;
+    }
+
+    if (!client.battleId) {
+      client.sendError('NOT_IN_BATTLE');
+      return;
+    }
+
+    const battle = this.battles.get(client.battleId);
+    if (!battle) {
+      client.sendError('BATTLE_NOT_FOUND');
+      return;
+    }
+
+    if (!battle.hasPlayer(client.player.id)) {
+      logger.warn('Ack rejected: sender not in battle', {
+        clientId: client.id,
+        playerId: client.player.id,
+        battleId: client.battleId,
+      });
+      client.sendError('NOT_IN_BATTLE');
+      return;
+    }
+
+    const ackTick = message.ackTick ?? message.ack_tick;
+    if (typeof ackTick !== 'number' || !Number.isFinite(ackTick)) {
+      client.sendError('INVALID_INPUT');
+      return;
+    }
+
+    battle.handleInputAck(client.player.id, ackTick);
   }
 
   private async handleSaveDeck(client: NetworkClient, message: SaveDeckRequest): Promise<void> {

@@ -159,6 +159,96 @@ namespace CRClone.Tests.Integration
         }
 
         [Test]
+        public void Reconciliation_Applies_Authoritative_Snapshot()
+        {
+            // Diverged client: play a Knight and let it simulate forward.
+            InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
+            SetPlayerElixir(1, 10);
+            PlayCard(1, 26000040, new Vector2(9, 8));
+            Step(1f);
+
+            var knight = FindUnit(1, 26000040);
+            Assert.IsNotNull(knight, "Knight should exist before reconcile");
+            Assert.AreNotEqual(new Vector2(5f, 5f), knight.Position, "Precondition: client diverged from snapshot");
+
+            // Authoritative server snapshot with different values.
+            var serverState = new GameStateMessage
+            {
+                tick = Simulation.CurrentTick,
+                entities = new[]
+                {
+                    new EntityState
+                    {
+                        id = knight.Id,
+                        position = new Vector2(5f, 5f),
+                        velocity = new Vector2(0f, 0f),
+                        hp = 500,
+                        maxHp = 1520,
+                        targetId = 0,
+                        isDead = false,
+                    },
+                },
+                player1 = new CRClone.Network.PlayerState
+                {
+                    playerId = 1,
+                    elixir = 7,
+                    hand = new uint[0],
+                    deck = new uint[0],
+                    nextCardIndex = 0,
+                    kingTowerActivated = false,
+                },
+                player2 = new CRClone.Network.PlayerState
+                {
+                    playerId = 2,
+                    elixir = 6,
+                    hand = new uint[0],
+                    deck = new uint[0],
+                    nextCardIndex = 0,
+                    kingTowerActivated = false,
+                },
+            };
+
+            int applied = Reconciler.ApplySnapshot(Simulation, serverState);
+            Assert.AreEqual(1, applied, "Snapshot entity should be applied");
+
+            // Converged immediately...
+            Assert.AreEqual(new Vector2(5f, 5f), knight.Position);
+            Assert.AreEqual(500, knight.CurrentHP);
+            Assert.AreEqual(7, Simulation.Player1.Elixir);
+
+            // ...and still converged after one tick.
+            Tick();
+            Assert.AreEqual(500, knight.CurrentHP);
+            Assert.AreEqual(7, Simulation.Player1.Elixir);
+            Assert.LessOrEqual(Vector2.Distance(new Vector2(5f, 5f), knight.Position), 0.5f);
+        }
+
+        [Test]
+        public void Reconciliation_Entity_Hash_Matches_Server_Algorithm()
+        {
+            // Same inputs => same hash; different values => different hash.
+            var a = new[]
+            {
+                new EntityState { id = 1001, position = new Vector2(9f, 8f), hp = 1520 },
+                new EntityState { id = 1002, position = new Vector2(2f, 6f), hp = 2168 },
+            };
+            var b = new[]
+            {
+                // Order-independent: reversed input must hash identically.
+                new EntityState { id = 1002, position = new Vector2(2f, 6f), hp = 2168 },
+                new EntityState { id = 1001, position = new Vector2(9f, 8f), hp = 1520 },
+            };
+            var c = new[]
+            {
+                new EntityState { id = 1001, position = new Vector2(9f, 8.5f), hp = 1520 },
+                new EntityState { id = 1002, position = new Vector2(2f, 6f), hp = 2168 },
+            };
+
+            Assert.AreEqual(Reconciler.ComputeEntityHash(a), Reconciler.ComputeEntityHash(b));
+            Assert.AreNotEqual(Reconciler.ComputeEntityHash(a), Reconciler.ComputeEntityHash(c));
+        }
+
+        [Test]
         public void Input_Order_Preserved()
         {
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);

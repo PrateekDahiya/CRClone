@@ -1,4 +1,5 @@
 import { PriorityQueue, Queue } from '../../src/matchmaking/Queue';
+import { RatingSystem } from '../../src/matchmaking/RatingSystem';
 import { BattleType, MatchmakingQueueEntry } from '../../src/types';
 
 // Mock BattleServer: real createBattle hits BigInt(Number(hugeBigInt)) => Infinity crash
@@ -73,6 +74,65 @@ describe('Matchmaking', () => {
       const sizes = matchmaker.getTeamQueueSizes(BattleType.TwoVTwo);
       expect(sizes.totalPlayers).toBe(3);
     });
+  });
+});
+
+describe('RatingSystem trophy scaling (Agent2 deliverable: BattleServer payouts)', () => {
+  const rs = new RatingSystem();
+
+  function resultFor(winner: 'player1' | 'player2' | 'draw', p1Crowns: number, p2Crowns: number) {
+    return {
+      battleId: 'test',
+      winner,
+      player1Crowns: p1Crowns,
+      player2Crowns: p2Crowns,
+      player1TrophyChange: 0,
+      player2TrophyChange: 0,
+      duration: 180,
+      wentOvertime: false,
+      replayId: '',
+    };
+  }
+
+  test('Underdog 3-0 win yields more than the old flat 30', () => {
+    // 3000-trophy underdog beats a 4000-trophy favorite 3-0:
+    // diff -1000 => base 40, 1.5x crown multiplier => 60, +10 shutout => 70.
+    const changes = rs.calculateTrophyChangeFromResult(resultFor('player1', 3, 0), 3000, 4000);
+    expect(changes.player1Change).toBeGreaterThan(30);
+    expect(changes.player1Change).toBe(70);
+    expect(changes.player2Change).toBeLessThan(0);
+  });
+
+  test('Favorite 3-0 blowout yields less than the old flat 30', () => {
+    // 5000-trophy favorite beats a 3000-trophy underdog 3-0:
+    // diff +2000 => base 10, 1.5x => 15, +10 shutout => 25.
+    const changes = rs.calculateTrophyChangeFromResult(resultFor('player1', 3, 0), 5000, 3000);
+    expect(changes.player1Change).toBeLessThan(30);
+    expect(changes.player1Change).toBe(25);
+  });
+
+  test('Close-match 1-0 win stays near base with no crown multiplier', () => {
+    const changes = rs.calculateTrophyChangeFromResult(resultFor('player1', 1, 0), 4000, 4050);
+    // diff -50 => base 30, crownDiff 1 => 1.0x => 30.
+    expect(changes.player1Change).toBe(30);
+  });
+
+  test('2-0 win applies the 1.2x crown multiplier', () => {
+    const changes = rs.calculateTrophyChangeFromResult(resultFor('player1', 2, 0), 4000, 4000);
+    // diff 0 => base 30, crownDiff 2 => 1.2x => 36.
+    expect(changes.player1Change).toBe(36);
+  });
+
+  test('Draw yields zero for both sides', () => {
+    const changes = rs.calculateTrophyChangeFromResult(resultFor('draw', 1, 1), 4000, 4000);
+    expect(changes).toEqual({ player1Change: 0, player2Change: 0 });
+  });
+
+  test('ELO: winner gains, loser loses symmetrically-ish', () => {
+    const gain = rs.calculateELOChange(3000, 4000, 1);
+    const loss = rs.calculateELOChange(4000, 3000, 0);
+    expect(gain).toBeGreaterThan(0);
+    expect(loss).toBeLessThan(0);
   });
 });
 

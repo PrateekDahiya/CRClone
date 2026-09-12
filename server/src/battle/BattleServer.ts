@@ -6,6 +6,8 @@ import { PlayerService } from '../services/PlayerService';
 import { BattleSimulation, FixedVector2 } from './BattleSimulation';
 import { EntityManager } from './EntityManager';
 import { ReplayRecorder, PlayerInputRecord } from './ReplayRecorder';
+import { RatingSystem, ratingSystem } from '../matchmaking/RatingSystem';
+import { getCardElixirCost, CHAMPION_ABILITY_COST } from './CardDatabase';
 
 interface BattlePlayer {
   info: PlayerBattleInfo;
@@ -150,6 +152,9 @@ export class BattleServer {
 
     this._tick++;
 
+    // 0. Retransmit stale unacknowledged inputs before stepping
+    this.processAcknowledgments();
+
     // 1. Process queued inputs
     this.processInputs();
 
@@ -208,6 +213,10 @@ export class BattleServer {
     }
   }
 
+  hasPlayer(playerId: string): boolean {
+    return this.getPlayerById(playerId) !== null;
+  }
+
   handleInput(playerId: string, input: PlayerInput): void {
     if (this._status !== BattleStatus.Playing) return;
 
@@ -225,8 +234,57 @@ export class BattleServer {
     buffer.push(input);
     this._inputBuffers.set(playerId, buffer);
 
+    // Mark this tick as processed so the per-tick retransmit pass
+    // (processAcknowledgments) does not resend it.
+    player.acknowledgedTick = Math.max(player.acknowledgedTick, input.clientTick);
+    if (player.connection && typeof player.connection.acknowledgeInput === 'function') {
+      player.connection.acknowledgeInput(input.clientTick);
+    }
+
     // Send immediate acknowledgment
     this.sendInputAck(playerId, input.clientTick);
+  }
+
+  handleInputAck(playerId: string, ackTick: number): void {
+    const player = this.getPlayerById(playerId);
+    if (!player) return;
+    if (typeof ackTick !== 'number' || !Number.isFinite(ackTick)) return;
+
+    player.acknowledgedTick = Math.max(player.acknowledgedTick, ackTick);
+    if (player.connection && typeof player.connection.acknowledgeInput === 'function') {
+      player.connection.acknowledgeInput(ackTick);
+    }
+  }
+
+  // Runs every tick: clears connection-level tracking up to the last
+  // processed tick, then resends stale unacknowledged inputs back into
+  // the simulation queue until they are acked or retries exhaust.
+  processAcknowledgments(): PlayerInput[] {
+    const resent: PlayerInput[] = [];
+    for (const player of [this._player1, this._player2]) {
+      const conn = player.connection;
+      if (!conn) continue;
+      if (typeof conn.acknowledgeInput === 'function') {
+        conn.acknowledgeInput(player.acknowledgedTick);
+      }
+      if (typeof conn.retryUnacknowledgedInputs === 'function') {
+        const stale: PlayerInput[] = conn.retryUnacknowledgedInputs(1000);
+        for (const input of stale) {
+          const buffer = this._inputBuffers.get(player.info.playerId) || [];
+          buffer.push(input);
+          this._inputBuffers.set(player.info.playerId, buffer);
+          resent.push(input);
+        }
+        if (stale.length > 0) {
+          logger.debug('Resent unacknowledged inputs', {
+            battleId: this.battleId,
+            playerId: player.info.playerId,
+            count: stale.length,
+          });
+        }
+      }
+    }
+    return resent;
   }
 
   private validateInput(player: BattlePlayer, input: PlayerInput): boolean {
@@ -237,9 +295,23 @@ export class BattleServer {
       }
     }
 
-    // Check elixir cost (simplified - would lookup actual cost)
-    const estimatedCost = input.type === 'play_card' ? 3 : 2;
-    if (player.elixir < estimatedCost) {
+    // Real elixir cost looked up from the card database.
+    // Unknown cardId => reject. Champion abilities use the fixed
+    // activation cost; emotes are free.
+    const cardId = input.cardId ?? input.spellId;
+    let cost: number;
+    if (cardId !== undefined) {
+      const realCost = getCardElixirCost(cardId);
+      if (realCost === undefined) {
+        return false;
+      }
+      cost = realCost;
+    } else if (input.type === 'champion_ability') {
+      cost = CHAMPION_ABILITY_COST;
+    } else {
+      cost = 0;
+    }
+    if (player.elixir < cost) {
       return false;
     }
 
@@ -489,17 +561,72 @@ export class BattleServer {
     // Give grace period for reconnection
     setTimeout(() => {
       if (!player.connection && !this._gameEnded) {
-        this.endBattle(player === this._player1 ? 'player2' : 'player1', true);
+        this.endBattle(player === this._player1 ? 'player2' : 'player1');
       }
     }, 10000);
   }
 
   forceEnd(): void {
     if (this._gameEnded) return;
-    this.endBattle('draw', true);
+    this.endBattle('draw');
   }
 
-  private endBattle(winner: WinnerType, forfeit = false): void {
+  // Trophy + ELO deltas for a finished battle, delegated to the shared
+  // RatingSystem so payouts match matchmaking expectations exactly.
+  public computeRatingChanges(
+    winner: WinnerType,
+    p1Crowns: number,
+    p2Crowns: number
+  ): {
+    player1TrophyChange: number;
+    player2TrophyChange: number;
+    player1EloChange: number;
+    player2EloChange: number;
+  } {
+    const p1Trophies = this._player1.info.trophies;
+    const p2Trophies = this._player2.info.trophies;
+
+    const trophy = ratingSystem.calculateTrophyChangeFromResult(
+      {
+        battleId: this.battleId,
+        winner,
+        player1Crowns: p1Crowns,
+        player2Crowns: p2Crowns,
+        player1TrophyChange: 0,
+        player2TrophyChange: 0,
+        duration: 0,
+        wentOvertime: false,
+        replayId: '',
+      },
+      p1Trophies,
+      p2Trophies
+    );
+
+    // ELO uses trophies as the rating proxy; score follows the winner.
+    const p1Score = winner === 'player1' ? 1 : winner === 'draw' ? 0.5 : 0;
+    const player1EloChange = ratingSystem.calculateELOChange(p1Trophies, p2Trophies, p1Score);
+    const player2EloChange = ratingSystem.calculateELOChange(p2Trophies, p1Trophies, 1 - p1Score);
+
+    logger.info('Battle rating changes', {
+      battleId: this.battleId,
+      winner,
+      p1Crowns,
+      p2Crowns,
+      player1TrophyChange: trophy.player1Change,
+      player2TrophyChange: trophy.player2Change,
+      player1EloChange,
+      player2EloChange,
+    });
+
+    return {
+      player1TrophyChange: trophy.player1Change,
+      player2TrophyChange: trophy.player2Change,
+      player1EloChange,
+      player2EloChange,
+    };
+  }
+
+  private endBattle(winner: WinnerType): void {
     if (this._gameEnded) return;
     this._gameEnded = true;
 
@@ -513,7 +640,7 @@ export class BattleServer {
 
     const duration = Math.floor((Date.now() - this._startTime) / 1000);
 
-// Calculate crowns
+    // Calculate crowns
     let p1Crowns = 0, p2Crowns = 0;
     for (const tower of this._simulation.Towers) {
       if (tower.OwnerPlayerId === 1 && tower.TowerType !== TowerType.King && tower.IsDead) p1Crowns++;
@@ -522,17 +649,19 @@ export class BattleServer {
     if (winner === 'player1') p1Crowns = 3;
     if (winner === 'player2') p2Crowns = 3;
 
-    // Calculate trophy changes (simplified)
-    const p1TrophyChange = winner === 'player1' ? 30 : -30;
-    const p2TrophyChange = winner === 'player2' ? 30 : -30;
+    // Rating changes from the shared RatingSystem (diff-scaled base,
+    // 1.5x/1.2x crown multipliers, 3-crown bonus). A forfeit is settled
+    // as a normal rated result for the recorded winner; a forced draw
+    // (e.g. server shutdown) yields 0/0 from the RatingSystem.
+    const rating = this.computeRatingChanges(winner, p1Crowns, p2Crowns);
 
     const result = {
       battleId: this.battleId,
       winner,
       player1Crowns: p1Crowns,
       player2Crowns: p2Crowns,
-      player1TrophyChange: forfeit ? -30 : p1TrophyChange,
-      player2TrophyChange: forfeit ? -30 : p2TrophyChange,
+      player1TrophyChange: rating.player1TrophyChange,
+      player2TrophyChange: rating.player2TrophyChange,
       duration,
       wentOvertime: duration > 180,
       replayId: '',
