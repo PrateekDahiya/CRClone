@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 using CRClone.Data;
@@ -153,6 +154,26 @@ namespace CRClone.Editor
                 }
             }
 
+            // Projectiles for ranged troops (mirrors Unit.PerformAttack: AttackRange > 1.5f).
+            foreach (var card in cards)
+            {
+                if (!card.isEnabled) continue;
+                if (card.type != CardType.Troop && card.type != CardType.Champion) continue;
+                if (card.baseRange <= 1.5f) continue;
+
+                var projectile = GenerateProjectilePrefab(card);
+                var projPath = Path.Combine(_outputFolder, "Projectiles", $"{projectile.name}.prefab").Replace("\\", "/");
+                var projDir = Path.GetDirectoryName(projPath);
+                if (!Directory.Exists(projDir)) Directory.CreateDirectory(projDir);
+
+                PrefabUtility.SaveAsPrefabAsset(projectile, projPath);
+                DestroyImmediate(projectile);
+                count++;
+            }
+
+            // Tower prefabs are synthesized from GameConfig defaults (towers are not cards).
+            count += GenerateTowerPrefabs();
+
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             EditorUtility.DisplayDialog("Complete", $"Generated {count} prefabs", "OK");
@@ -160,14 +181,14 @@ namespace CRClone.Editor
 
         private GameObject GenerateUnitPrefab(CardData card)
         {
-            var prefab = new GameObject($"Unit_{card.cardName.Replace(" ", "")}");
+            var prefab = new GameObject($"Unit_{SanitizePrefabName(card.cardName)}");
             prefab.tag = "Unit";
             prefab.layer = LayerMask.NameToLayer("Unit");
 
-            // Add UnitView component
+            // NOTE: Unit (Simulation) is a plain C# class, not a MonoBehaviour,
+            // so it cannot be attached. Runtime stats come from CardData via
+            // UnitView.Initialize(); the prefab carries views + Unity components.
             var unitView = prefab.AddComponent<UnitView>();
-            unitView.entity = prefab.AddComponent<Unit>();
-            unitView.cardData = card;
 
             // Add Spine animation (placeholder - will be replaced by SpineExporter)
             var animator = prefab.AddComponent<Animator>();
@@ -191,40 +212,34 @@ namespace CRClone.Editor
             // Add HealthBar
             var healthBar = CreateHealthBar(prefab.transform);
 
-            // Add SelectionRing
+            // Add SelectionRing (inactive until selected)
             var selectionRing = CreateSelectionRing(prefab.transform);
 
             // Add particle points
             CreateParticlePoints(prefab.transform);
 
-            // Apply card stats to Unit
-            var unit = prefab.GetComponent<Unit>();
-            unit.cardData = card;
-            unit.maxHP = card.baseHitpoints;
-            unit.currentHP = card.baseHitpoints;
-            unit.damage = card.baseDamage;
-            unit.hitSpeed = card.baseHitSpeed;
-            unit.range = card.baseRange;
-            unit.moveSpeed = GetSpeedValue(card.speed);
-            unit.targetType = card.targetType;
-            unit.deployTime = card.deployTime;
-            unit.entityType = EntityType.Unit;
+            // Wire view references (editor-only; fields are private [SerializeField])
+            var so = new SerializedObject(unitView);
+            so.FindProperty("_spriteRenderer").objectReferenceValue = spriteRenderer;
+            so.FindProperty("_animator").objectReferenceValue = animator;
+            so.FindProperty("_healthBar").objectReferenceValue = healthBar;
+            so.FindProperty("_selectionRing").objectReferenceValue = selectionRing.gameObject;
+            so.ApplyModifiedProperties();
 
-            // Add IPoolable
-            var poolable = prefab.AddComponent<UnitPoolable>();
+            // Add IPoolable (runtime-safe Presentation version)
+            prefab.AddComponent<CRClone.Battle.Presentation.UnitPoolable>();
 
             return prefab;
         }
 
         private GameObject GenerateBuildingPrefab(CardData card)
         {
-            var prefab = new GameObject($"Building_{card.cardName.Replace(" ", "")}");
+            var prefab = new GameObject($"Building_{SanitizePrefabName(card.cardName)}");
             prefab.tag = "Building";
             prefab.layer = LayerMask.NameToLayer("Building");
 
+            // NOTE: Building (Simulation) is a plain C# class (see Unit note above).
             var buildingView = prefab.AddComponent<BuildingView>();
-            buildingView.entity = prefab.AddComponent<Building>();
-            buildingView.cardData = card;
 
             var animator = prefab.AddComponent<Animator>();
             var controller = CreateBuildingAnimatorController(card);
@@ -242,73 +257,72 @@ namespace CRClone.Editor
 
             var healthBar = CreateHealthBar(prefab.transform);
 
+            // Retracted-visual placeholder (BuildingView requires it; Tesla drives it)
+            var retractedObj = new GameObject("RetractedVisual");
+            retractedObj.transform.SetParent(prefab.transform);
+            retractedObj.SetActive(false);
+
             // Special handling for Tesla (retraction)
             if (card.cardName.Contains("Tesla", StringComparison.OrdinalIgnoreCase))
             {
-                var teslaRetract = prefab.AddComponent<TeslaRetraction>();
-                teslaRetract.retractedPosition = Vector3.down * 2f;
+                var teslaRetract = prefab.AddComponent<CRClone.Battle.Presentation.TeslaRetraction>();
+                var tso = new SerializedObject(teslaRetract);
+                tso.FindProperty("_retractedPosition").vector3Value = Vector3.down * 2f;
+                tso.ApplyModifiedProperties();
             }
 
-            // Spawn points for spawners
+            // Spawn points for spawners (BattleView locates "SpawnPoint" by name)
             if (card.mechanicsJson.Contains("spawn") || card.cardName.Contains("Hut") || card.cardName.Contains("Furnace") || card.cardName.Contains("Tombstone") || card.cardName.Contains("Cage") || card.cardName.Contains("Drill"))
             {
                 var spawnPoint = new GameObject("SpawnPoint").transform;
                 spawnPoint.SetParent(prefab.transform);
                 spawnPoint.localPosition = Vector3.up * 1f;
-                buildingView.spawnPoint = spawnPoint;
             }
 
-            var building = prefab.GetComponent<Building>();
-            building.cardData = card;
-            building.maxHP = card.baseHitpoints;
-            building.currentHP = card.baseHitpoints;
-            building.damage = card.baseDamage;
-            building.hitSpeed = card.baseHitSpeed;
-            building.range = card.baseRange;
-            building.targetType = card.targetType;
-            building.lifetime = GetBuildingLifetime(card);
-            building.entityType = EntityType.Building;
+            // Wire view references (editor-only; fields are private [SerializeField])
+            var so = new SerializedObject(buildingView);
+            so.FindProperty("_spriteRenderer").objectReferenceValue = spriteRenderer;
+            so.FindProperty("_animator").objectReferenceValue = animator;
+            so.FindProperty("_healthBar").objectReferenceValue = healthBar;
+            so.FindProperty("_retractedVisual").objectReferenceValue = retractedObj;
+            so.ApplyModifiedProperties();
 
-            var poolable = prefab.AddComponent<BuildingPoolable>();
+            prefab.AddComponent<CRClone.Battle.Presentation.BuildingPoolable>();
 
             return prefab;
         }
 
         private GameObject GenerateSpellPrefab(CardData card)
         {
-            var prefab = new GameObject($"Spell_{card.cardName.Replace(" ", "")}");
+            var prefab = new GameObject($"Spell_{SanitizePrefabName(card.cardName)}");
             prefab.tag = "Spell";
             prefab.layer = LayerMask.NameToLayer("Spell");
 
+            // NOTE: SpellEffect (Simulation) is a plain C# class (see Unit note).
             var spellView = prefab.AddComponent<SpellEffectView>();
-            spellView.entity = prefab.AddComponent<SpellEffect>();
-            spellView.cardData = card;
 
             // Add ParticleSystem for spell effects
             var ps = prefab.AddComponent<ParticleSystem>();
             ConfigureSpellParticles(ps, card);
 
-            var spell = prefab.GetComponent<SpellEffect>();
-            spell.cardData = card;
-            spell.damage = card.baseDamage;
-            spell.radius = GetSpellRadius(card);
-            spell.duration = GetSpellDuration(card);
-            spell.entityType = EntityType.SpellEffect;
+            // Wire view references (editor-only; fields are private [SerializeField])
+            var so = new SerializedObject(spellView);
+            so.FindProperty("_particleSystem").objectReferenceValue = ps;
+            so.ApplyModifiedProperties();
 
-            var poolable = prefab.AddComponent<SpellPoolable>();
+            prefab.AddComponent<CRClone.Battle.Presentation.SpellPoolable>();
 
             return prefab;
         }
 
         private GameObject GenerateProjectilePrefab(CardData card)
         {
-            var prefab = new GameObject($"Projectile_{card.cardName.Replace(" ", "")}");
+            var prefab = new GameObject($"Projectile_{SanitizePrefabName(card.cardName)}");
             prefab.tag = "Projectile";
             prefab.layer = LayerMask.NameToLayer("Projectile");
 
+            // NOTE: Projectile (Simulation) is a plain C# class (see Unit note).
             var projectileView = prefab.AddComponent<ProjectileView>();
-            projectileView.entity = prefab.AddComponent<Projectile>();
-            projectileView.cardData = card;
 
             var spriteRenderer = prefab.AddComponent<SpriteRenderer>();
             spriteRenderer.sortingOrder = 15;
@@ -317,7 +331,9 @@ namespace CRClone.Editor
             trailRenderer.time = 0.3f;
             trailRenderer.startWidth = 0.2f;
             trailRenderer.endWidth = 0f;
-            trailRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            // NOTE: no material assigned on purpose - a runtime-created Material
+            // is not an asset and cannot ship inside a prefab; the renderer
+            // falls back to its default material.
 
             var collider = prefab.AddComponent<CircleCollider2D>();
             collider.radius = 0.2f;
@@ -326,26 +342,31 @@ namespace CRClone.Editor
             var rb = prefab.AddComponent<Rigidbody2D>();
             rb.bodyType = RigidbodyType2D.Kinematic;
 
-            var projectile = prefab.GetComponent<Projectile>();
-            projectile.cardData = card;
-            projectile.damage = card.baseDamage;
-            projectile.speed = 20f;
-            projectile.entityType = EntityType.Projectile;
+            // Impact particles (ProjectileView requires the reference)
+            var impactObj = new GameObject("ImpactParticles");
+            impactObj.transform.SetParent(prefab.transform);
+            var impactPs = impactObj.AddComponent<ParticleSystem>();
 
-            var poolable = prefab.AddComponent<ProjectilePoolable>();
+            // Wire view references (editor-only; fields are private [SerializeField])
+            var so = new SerializedObject(projectileView);
+            so.FindProperty("_spriteRenderer").objectReferenceValue = spriteRenderer;
+            so.FindProperty("_trailRenderer").objectReferenceValue = trailRenderer;
+            so.FindProperty("_impactParticles").objectReferenceValue = impactPs;
+            so.ApplyModifiedProperties();
+
+            prefab.AddComponent<CRClone.Battle.Presentation.ProjectilePoolable>();
 
             return prefab;
         }
 
         private GameObject GenerateTowerPrefab(CardData card)
         {
-            var prefab = new GameObject($"Tower_{card.cardName.Replace(" ", "")}");
+            var prefab = new GameObject($"Tower_{SanitizePrefabName(card.cardName)}");
             prefab.tag = "Tower";
             prefab.layer = LayerMask.NameToLayer("Tower");
 
+            // NOTE: Tower (Simulation) is a plain C# class (see Unit note).
             var towerView = prefab.AddComponent<TowerView>();
-            towerView.entity = prefab.AddComponent<Tower>();
-            towerView.cardData = card;
 
             var animator = prefab.AddComponent<Animator>();
             var controller = CreateTowerAnimatorController(card);
@@ -363,17 +384,66 @@ namespace CRClone.Editor
 
             var healthBar = CreateHealthBar(prefab.transform);
 
-            var tower = prefab.GetComponent<Tower>();
-            tower.cardData = card;
-            tower.maxHP = card.baseHitpoints;
-            tower.currentHP = card.baseHitpoints;
-            tower.damage = card.baseDamage;
-            tower.hitSpeed = card.baseHitSpeed;
-            tower.range = card.baseRange;
-            tower.targetType = card.targetType;
-            tower.entityType = EntityType.Tower;
+            // Activation effect (TowerView requires the reference)
+            var activationObj = new GameObject("ActivationEffect");
+            activationObj.transform.SetParent(prefab.transform);
+            activationObj.SetActive(false);
+
+            // Wire view references (editor-only; fields are private [SerializeField])
+            var so = new SerializedObject(towerView);
+            so.FindProperty("_spriteRenderer").objectReferenceValue = spriteRenderer;
+            so.FindProperty("_animator").objectReferenceValue = animator;
+            so.FindProperty("_healthBar").objectReferenceValue = healthBar;
+            so.FindProperty("_activationEffect").objectReferenceValue = activationObj;
+            so.ApplyModifiedProperties();
 
             return prefab;
+        }
+
+        private int GenerateTowerPrefabs()
+        {
+            // Towers are not cards; synthesize per-tower CardData from the
+            // GameConfig tower defaults so GenerateTowerPrefab can run.
+            int count = 0;
+            var defs = new[]
+            {
+                new { name = "King", hp = 4384 },
+                new { name = "Princess", hp = 2584 },
+            };
+
+            foreach (var def in defs)
+            {
+                var towerCard = ScriptableObject.CreateInstance<CardData>();
+                towerCard.cardId = 0;
+                towerCard.cardName = def.name;
+                towerCard.rarity = CardRarity.Common;
+                towerCard.type = CardType.Building;
+                towerCard.baseHitpoints = def.hp;
+                towerCard.baseDamage = 152;
+                towerCard.baseHitSpeed = 1.2f;
+                towerCard.baseRange = 7f;
+                towerCard.speed = SpeedType.Medium;
+                towerCard.targetType = TargetType.Both;
+                towerCard.isEnabled = true;
+
+                var tower = GenerateTowerPrefab(towerCard);
+                var towerPath = Path.Combine(_outputFolder, "Towers", $"{tower.name}.prefab").Replace("\\", "/");
+                var towerDir = Path.GetDirectoryName(towerPath);
+                if (!Directory.Exists(towerDir)) Directory.CreateDirectory(towerDir);
+
+                PrefabUtility.SaveAsPrefabAsset(tower, towerPath);
+                DestroyImmediate(tower);
+                DestroyImmediate(towerCard);
+                count++;
+            }
+
+            return count;
+        }
+
+        private static string SanitizePrefabName(string name)
+        {
+            var s = (name ?? string.Empty).Replace(" ", "").Replace("-", "_").Replace(".", "").Replace("'", "");
+            return Regex.Replace(s, @"[^A-Za-z0-9_]", "");
         }
 
         private void CreateDefaultTemplates()
@@ -634,18 +704,18 @@ namespace CRClone.Editor
             return hbObj.AddComponent<HealthBar>();
         }
 
-        private SelectionRing CreateSelectionRing(Transform parent)
+        private CRClone.Battle.Presentation.SelectionRing CreateSelectionRing(Transform parent)
         {
             var ringObj = new GameObject("SelectionRing");
             ringObj.transform.SetParent(parent);
             ringObj.transform.localPosition = Vector3.zero;
-            
-            var ring = ringObj.AddComponent<SelectionRing>();
+
+            var ring = ringObj.AddComponent<CRClone.Battle.Presentation.SelectionRing>();
             var lineRenderer = ringObj.AddComponent<LineRenderer>();
             lineRenderer.positionCount = 32;
             lineRenderer.widthMultiplier = 0.05f;
-            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
-            lineRenderer.material.color = Color.yellow;
+            // NOTE: no material assigned on purpose - a runtime-created Material
+            // is not an asset and cannot ship inside a prefab.
             lineRenderer.loop = true;
             
             // Create circle
@@ -759,51 +829,9 @@ namespace CRClone.Editor
             return Color.white;
         }
 
-        private float GetSpeedValue(SpeedType speed)
-        {
-            return speed switch
-            {
-                SpeedType.VerySlow => 20f,
-                SpeedType.Slow => 35f,
-                SpeedType.Medium => 50f,
-                SpeedType.Fast => 70f,
-                SpeedType.VeryFast => 100f,
-                _ => 50f
-            };
-        }
-
-        private float GetBuildingLifetime(CardData card)
-        {
-            // Default lifetimes based on building type
-            if (card.cardName.Contains("Tesla")) return 25f;
-            if (card.cardName.Contains("Inferno Tower")) return 25f;
-            if (card.cardName.Contains("Tombstone")) return 20f;
-            if (card.cardName.Contains("Furnace")) return 40f;
-            if (card.cardName.Contains("Elixir Collector")) return 70f;
-            if (card.cardName.Contains("Goblin Drill")) return 30f;
-            if (card.cardName.Contains("Cannon Cart")) return 30f;
-            return 30f;
-        }
-
-        private float GetSpellRadius(CardData card)
-        {
-            // Parse from mechanics or use defaults
-            if (card.mechanicsJson.Contains("radius"))
-            {
-                // Would parse from JSON
-            }
-            return 2.5f;
-        }
-
-        private float GetSpellDuration(CardData card)
-        {
-            if (card.cardName.Contains("Freeze")) return 4f;
-            if (card.cardName.Contains("Poison")) return 8f;
-            if (card.cardName.Contains("Rage")) return 6f;
-            if (card.cardName.Contains("Tornado")) return 1.5f;
-            if (card.cardName.Contains("Graveyard")) return 3f;
-            return 1f;
-        }
+        // NOTE: GetSpeedValue/GetBuildingLifetime/GetSpellRadius/GetSpellDuration
+        // were removed - they fed Simulation plain-class fields which cannot
+        // be serialized onto prefabs. Runtime stats resolve from CardData.
     }
 
     // Poolable components for different entity types
