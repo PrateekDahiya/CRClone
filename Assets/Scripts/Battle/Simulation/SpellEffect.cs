@@ -15,6 +15,7 @@ namespace CRClone.Battle.Simulation
         public float RemainingTime { get; private set; }
         public SpellType Type { get; private set; }
         public bool IsFinished => RemainingTime <= 0;
+        public int Level { get; private set; }
 
         // Spell-specific data
         private int _damage;
@@ -45,6 +46,7 @@ namespace CRClone.Battle.Simulation
         {
             SpellData = cardData;
             CenterPosition = position;
+            Level = level;
             Duration = GetSpellDuration(cardData);
             RemainingTime = Duration;
             Type = GetSpellType(cardData);
@@ -121,7 +123,7 @@ namespace CRClone.Battle.Simulation
             };
         }
 
-        private void ParseSpellStats(CardData card, CardLevelStats stats)
+private void ParseSpellStats(CardData card, CardLevelStats stats)
         {
             Radius = GetSpellRadius(card);
             _damage = stats.damage;
@@ -187,9 +189,11 @@ namespace CRClone.Battle.Simulation
                     Radius = 3f;
                     break;
                 case "Mirror":
-                    // Handled elsewhere - mirrors last played card
+                    // Mirrors last card played at +1 level
+                    // Handled in BattleSimulation when spell is cast
                     break;
             }
+        }
         }
 
         private float GetSpellRadius(CardData card)
@@ -314,7 +318,7 @@ namespace CRClone.Battle.Simulation
                 // Knockback
                 if (_knockback > 0)
                 {
-                    ApplyKnockback(target);
+                    ApplyKnockback(target, sim);
                 }
 
                 // Stun (Zap, Lightning)
@@ -493,8 +497,10 @@ namespace CRClone.Battle.Simulation
             if (_spawnCardData == null) return;
 
             var stats = _spawnCardData.GetStats(1); // Skeletons always level 1 equivalent
-            float angle = UnityEngine.Random.Range(0f, 360f) * Mathf.Deg2Rad;
-            float radius = UnityEngine.Random.Range(0f, Radius);
+            
+            // Use deterministic RNG for consistent skeleton positions
+            float angle = (float)sim._rng.NextDouble() * 360f * Mathf.Deg2Rad;
+            float radius = (float)sim._rng.NextDouble() * Radius;
             Vector2 spawnPos = CenterPosition + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
 
             var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, _spawnCardData, stats, spawnPos, 1);
@@ -516,7 +522,7 @@ namespace CRClone.Battle.Simulation
             int cloneLevel = Math.Max(1, unit.Level - 1);
             var cloneStats = cardData.GetStats(cloneLevel);
 
-            Vector2 offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+            Vector2 offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
             var clone = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, cloneStats, unit.Position + offset, cloneLevel);
             
             // Set HP to same percentage
@@ -589,10 +595,10 @@ namespace CRClone.Battle.Simulation
             return targets;
         }
 
-        private void ApplyKnockback(Entity target)
+        private void ApplyKnockback(Entity target, BattleSimulation sim)
         {
             Vector2 dir = (target.Position - CenterPosition).normalized;
-            if (dir == Vector2.zero) dir = new Vector2(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f)).normalized;
+            if (dir == Vector2.zero) dir = new Vector2((float)sim._rng.NextDouble() * 2f - 1f, (float)sim._rng.NextDouble() * 2f - 1f).normalized;
             target.Position += dir * _knockback;
         }
     }

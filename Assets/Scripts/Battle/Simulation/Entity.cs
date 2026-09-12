@@ -14,7 +14,7 @@ namespace CRClone.Battle.Simulation
         public Vector2 Position { get; set; }
         public Vector2 Velocity { get; set; }
         public float Rotation { get; set; }
-        public int CurrentHP { get; protected set; }
+        public int CurrentHP { get; internal set; }
         public int MaxHP { get; protected set; }
         public float CollisionRadius { get; protected set; } = 0.5f;
         public bool IsDead => CurrentHP <= 0;
@@ -52,15 +52,6 @@ namespace CRClone.Battle.Simulation
 
             CurrentHP -= finalDamage;
             if (CurrentHP < 0) CurrentHP = 0;
-
-            // Log damage event
-            sim.LogEvent(new BattleEvent
-            {
-                tick = sim.CurrentTick,
-                type = EventType.TowerDamaged, // Generic damage event
-                playerId = OwnerPlayerId,
-                position = Position
-            });
         }
 
         public virtual void Die(DeathCause cause = DeathCause.Damage)

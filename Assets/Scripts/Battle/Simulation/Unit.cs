@@ -12,7 +12,7 @@ namespace CRClone.Battle.Simulation
         public CardLevelStats Stats { get; private set; }
         public int Level { get; private set; }
         public UnitState State { get; private set; } = UnitState.Idle;
-        public Entity Target { get; private set; }
+        public Entity Target { get; internal set; }
         public float AttackCooldown { get; private set; }
         public float MoveSpeed { get; private set; }
         public float BaseMoveSpeed { get; private set; }
@@ -168,7 +168,7 @@ namespace CRClone.Battle.Simulation
             // Acquire target if needed
             if (Target == null)
             {
-                Target = AcquireTarget(sim.GetPotentialTargets(this));
+                Target = AcquireTarget(sim.GetPotentialTargets(this), sim);
             }
 
             // Attack or move
@@ -180,7 +180,7 @@ namespace CRClone.Battle.Simulation
                 if (dist <= effectiveRange)
                 {
                     // In range - attack
-                    TryAttack(sim);
+                    TryAttack(dt, sim);
                 }
                 else
                 {
@@ -228,7 +228,7 @@ namespace CRClone.Battle.Simulation
             return true;
         }
 
-        private Entity AcquireTarget(List<Entity> candidates)
+        internal Entity AcquireTarget(List<Entity> candidates, BattleSimulation sim)
         {
             Entity bestTarget = null;
             int bestPathDist = int.MaxValue;
@@ -281,9 +281,10 @@ namespace CRClone.Battle.Simulation
 
         private void MoveTowardTarget(float dt, BattleSimulation sim)
         {
+            if (Target == null) return;
             // Re-request path if target moved significantly or timer elapsed
             _pathRequestTimer += dt;
-            bool targetMoved = Target != null && Vector2.Distance(Target.Position, _lastTargetPosition) > 1f;
+            bool targetMoved = Vector2.Distance(Target.Position, _lastTargetPosition) > 1f;
             
             if (_path == null || _path.Count == 0 || _pathIndex >= _path.Count || 
                 _pathRequestTimer >= PATH_REQUEST_INTERVAL || targetMoved)
@@ -319,8 +320,28 @@ namespace CRClone.Battle.Simulation
                 ? new Vector2(9f, 20f) // Toward enemy side
                 : new Vector2(9f, 12f); // Toward enemy side
             
-            RequestPath(targetPos, sim);
-            MoveTowardTarget(dt, sim);
+            if (_path == null || _path.Count == 0 || _pathIndex >= _path.Count)
+            {
+                RequestPath(targetPos, sim);
+                return;
+            }
+
+            Vector2 nextPos = _path[_pathIndex];
+            Vector2 dir = (nextPos - Position).normalized;
+            float moveDist = MoveSpeed * dt * GetSpeedMultiplier();
+
+            if (Vector2.Distance(Position, nextPos) <= moveDist)
+            {
+                Position = nextPos;
+                _pathIndex++;
+            }
+            else
+            {
+                Position += dir * moveDist;
+            }
+
+            State = UnitState.Moving;
+            Velocity = dir * MoveSpeed * GetSpeedMultiplier();
         }
 
         private float GetSpeedMultiplier()
@@ -345,7 +366,7 @@ namespace CRClone.Battle.Simulation
             _pathIndex = 0;
         }
 
-        private void TryAttack(BattleSimulation sim)
+        private void TryAttack(float dt, BattleSimulation sim)
         {
             Velocity = Vector2.zero;
             State = UnitState.Attacking;
@@ -564,6 +585,19 @@ namespace CRClone.Battle.Simulation
 
             if (ChargeTimeRemaining <= 0)
             {
+                // Handle Mighty Miner super dash end damage
+                if (CardData.cardName == "Mighty Miner" && ChargeDamageMultiplier == 1f)
+                {
+                    // Super dash: deal 220 damage to enemies at end position
+                    foreach (var entity in sim.GetPotentialTargets(this))
+                    {
+                        if (entity.IsDead) continue;
+                        if (Vector2.Distance(Position, entity.Position) <= 1.5f)
+                        {
+                            DealDamage(entity, 220, DamageType.Physical, sim);
+                        }
+                    }
+                }
                 EndCharge();
             }
         }
@@ -586,7 +620,7 @@ namespace CRClone.Battle.Simulation
             RemoveStatusEffect(StatusEffectType.Invulnerable);
         }
 
-        public bool TryUseAbility(Vector2 targetPos)
+        public bool TryUseAbility(Vector2 targetPos, BattleSimulation sim)
         {
             if (!AbilityReady) return false;
 
@@ -600,25 +634,101 @@ namespace CRClone.Battle.Simulation
                 MoveSpeed = BaseMoveSpeed * 1.2f;
                 CanTargetAir = true;
                 AbilityCooldown = 20f;
+                
+                // Emit EventBus event
+                EventBus.Raise(new EventBus.ChampionAbilityUsedEvent
+                {
+                    playerId = OwnerPlayerId,
+                    championCardId = CardData.cardId,
+                    targetPosition = targetPos,
+                    elixirCost = 3
+                });
+                
                 return true;
             }
             else if (name == "Skeleton King")
             {
-                // Summon Skeletons: Spawn 5 skeletons around
+                // Summon Skeletons: Spawn 5 skeletons around self
+                SummonSkeletons(sim);
                 AbilityCooldown = 15f;
-                return true; // Actual spawn handled by simulation
+                
+                // Emit EventBus event
+                EventBus.Raise(new EventBus.ChampionAbilityUsedEvent
+                {
+                    playerId = OwnerPlayerId,
+                    championCardId = CardData.cardId,
+                    targetPosition = targetPos,
+                    elixirCost = 2
+                });
+                
+                return true;
             }
             else if (name == "Mighty Miner")
             {
-                // Super Dash: Dash 5 tiles, stun 1s, 220 damage at end
-                Vector2 dir = (targetPos - Position).normalized;
-                Vector2 dashTarget = Position + dir * 5f;
-                StartCharge(dashTarget, 0.5f, 1f); // Short dash
-                // Stun and damage at end handled in EndCharge override
+                // Super Dash: Dash 5 tiles, stun enemies in path, 220 damage at end
+                SuperDash(targetPos, sim);
                 AbilityCooldown = 10f;
+                
+                // Emit EventBus event
+                EventBus.Raise(new EventBus.ChampionAbilityUsedEvent
+                {
+                    playerId = OwnerPlayerId,
+                    championCardId = CardData.cardId,
+                    targetPosition = targetPos,
+                    elixirCost = 2
+                });
+                
                 return true;
             }
             return false;
+        }
+
+        private void SummonSkeletons(BattleSimulation sim)
+        {
+            var skeletonCard = Services.Get<DataManager>().GetCardByName("Skeleton");
+            if (skeletonCard == null) return;
+
+            var stats = skeletonCard.GetStats(Level);
+            for (int i = 0; i < 5; i++)
+            {
+                float angle = (i / 5f) * 360f * Mathf.Deg2Rad;
+                float radius = 1f;
+                Vector2 spawnPos = Position + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+                var skeleton = new Unit(sim._nextEntityId++, OwnerPlayerId, skeletonCard, stats, spawnPos, Level);
+                sim._units.Add(skeleton);
+                sim._entities[skeleton.Id] = skeleton;
+            }
+        }
+
+        private void SuperDash(Vector2 targetPos, BattleSimulation sim)
+        {
+            Vector2 dir = (targetPos - Position).normalized;
+            Vector2 dashTarget = Position + dir * 5f;
+            
+            // Stun enemies in path
+            foreach (var entity in sim.GetPotentialTargets(this))
+            {
+                if (entity.IsDead) continue;
+                
+                // Check if entity is in the dash path (within 0.75 tiles of line)
+                Vector2 toEntity = entity.Position - Position;
+                float projDist = Vector2.Dot(toEntity, dir);
+                if (projDist < 0 || projDist > 5f) continue; // Behind or past dash end
+                
+                Vector2 closestPoint = Position + dir * projDist;
+                float perpDist = Vector2.Distance(entity.Position, closestPoint);
+                
+                if (perpDist <= 0.75f)
+                {
+                    entity.AddStatusEffect(new StatusEffect(StatusEffectType.Stun, 1f, 0, 0, Id));
+                }
+            }
+            
+            // Dash to target
+            StartCharge(dashTarget, 0.5f, 1f);
+            
+            // Schedule damage at end of dash (will be applied when charge ends via collision)
+            // We'll handle the end-dash damage in UpdateCharge when charge completes
         }
 
         private void StartInvisibility(float duration)
@@ -693,7 +803,7 @@ namespace CRClone.Battle.Simulation
                 var stats = spawnCard.GetStats(Level);
                 for (int i = 0; i < count; i++)
                 {
-                    var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                    var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                     var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, spawnCard, stats, Position + offset, Level);
                     sim._units.Add(unit);
                     sim._entities[unit.Id] = unit;
@@ -709,7 +819,7 @@ namespace CRClone.Battle.Simulation
                 var stats = cardData.GetStats(Level);
                 for (int i = 0; i < 6; i++)
                 {
-                    var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                    var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                     var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                     sim._units.Add(unit);
                     sim._entities[unit.Id] = unit;
@@ -725,7 +835,7 @@ namespace CRClone.Battle.Simulation
                 var stats = cardData.GetStats(Level);
                 for (int i = 0; i < 4; i++)
                 {
-                    var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                    var offset = new Vector2((float)sim._rng.NextDouble() - 0.5f, (float)sim._rng.NextDouble() - 0.5f);
                     var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
                     sim._units.Add(unit);
                     sim._entities[unit.Id] = unit;

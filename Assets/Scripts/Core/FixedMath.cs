@@ -251,6 +251,8 @@ namespace CRClone.Core.Math
 
         public float NextFloat() => NextUInt() * (1f / 0xFFFFFFFFu);
         
+        public double NextDouble() => NextUInt() * (1.0 / 0xFFFFFFFFu);
+        
         public Fixed NextFixed() => Fixed.FromFloat(NextFloat());
         public Fixed NextFixed(Fixed min, Fixed max) => min + (max - min) * NextFixed();
 
