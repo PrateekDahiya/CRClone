@@ -24,9 +24,14 @@ namespace CRClone.Battle.Simulation
         private float _knockback;
         private float _slowPercent;
         private int _spawnCount;
+        private int _spawnedCount;
         private CardData _spawnCardData;
         private bool _isInstant;
         private bool _hasAppliedInstant;
+        private float _logTravelDistance;
+        private Vector2 _logDirection;
+        private int _lightningStrikesDone;
+        private float _lightningStrikeTimer;
 
         public static SpellEffect CreateFromCard(uint id, int ownerPlayerId, CardData cardData, Vector2 position, int level)
         {
@@ -45,6 +50,9 @@ namespace CRClone.Battle.Simulation
             Type = GetSpellType(cardData);
             _isInstant = IsInstantSpell(cardData);
             _hasAppliedInstant = false;
+            _spawnedCount = 0;
+            _lightningStrikesDone = 0;
+            _lightningStrikeTimer = 0f;
 
             ParseSpellStats(cardData, stats);
         }
@@ -65,6 +73,7 @@ namespace CRClone.Battle.Simulation
                 "The Log" => SpellType.Damage,
                 "Royal Delivery" => SpellType.Damage | SpellType.Spawn,
                 "Barbarian Barrel" => SpellType.Damage | SpellType.Spawn,
+                "Firecracker" => SpellType.Damage, // Not a spell but projectile
 
                 // Utility spells
                 "Freeze" => SpellType.Utility,
@@ -88,7 +97,9 @@ namespace CRClone.Battle.Simulation
                    card.cardName == "The Log" || card.cardName == "Freeze" ||
                    card.cardName == "Rage" || card.cardName == "Tornado" ||
                    card.cardName == "Earthquake" || card.cardName == "Giant Snowball" ||
-                   card.cardName == "Lightning" || card.cardName == "Clone";
+                   card.cardName == "Lightning" || card.cardName == "Clone" ||
+                   card.cardName == "Goblin Barrel" || card.cardName == "Skeleton Barrel" ||
+                   card.cardName == "Royal Delivery" || card.cardName == "Barbarian Barrel";
         }
 
         private float GetSpellDuration(CardData card)
@@ -99,11 +110,13 @@ namespace CRClone.Battle.Simulation
                 "Freeze" => 4f,
                 "Rage" => 6f,
                 "Tornado" => 1.5f,
-                "Graveyard" => 3f + 5f, // Spawn duration + skeleton lifetime
-                "Goblin Barrel" => 1f, // Travel time
+                "Graveyard" => 8f, // 3s spawn + skeleton lifetime
+                "Goblin Barrel" => 1.2f, // Travel time
                 "Skeleton Barrel" => 3f,
                 "Royal Delivery" => 1.5f,
                 "Barbarian Barrel" => 1f,
+                "Fireball" => 1f, // Travel time
+                "Rocket" => 1.5f, // Travel time
                 _ => 0f // Instant
             };
         }
@@ -128,7 +141,7 @@ namespace CRClone.Battle.Simulation
                     _damage = stats.damage; // Per strike
                     break;
                 case "Poison":
-                    _damagePerTick = 65; // Per 0.5s
+                    _damagePerTick = 65; // Per 0.5s at tournament standard
                     _tickInterval = 0.5f;
                     break;
                 case "Freeze":
@@ -153,6 +166,7 @@ namespace CRClone.Battle.Simulation
                 case "The Log":
                     _damage = stats.damage;
                     _knockback = 0.5f;
+                    _logTravelDistance = 11.5f;
                     break;
                 case "Giant Snowball":
                     _damage = stats.damage;
@@ -173,7 +187,7 @@ namespace CRClone.Battle.Simulation
                     Radius = 3f;
                     break;
                 case "Mirror":
-                    // Handled elsewhere
+                    // Handled elsewhere - mirrors last played card
                     break;
             }
         }
@@ -192,14 +206,25 @@ namespace CRClone.Battle.Simulation
                 "Graveyard" => 4f,
                 "Zap" => 2.5f,
                 "Arrows" => 4f,
-                "The Log" => 11.5f, // Width
+                "The Log" => 2.5f, // Width of the log
                 "Giant Snowball" => 2.5f,
                 "Earthquake" => 3.5f,
                 "Royal Delivery" => 2.5f,
                 "Barbarian Barrel" => 2.5f,
                 "Clone" => 3f,
-                "Freeze" => 3f,
                 _ => 2f
+            };
+        }
+
+        private float GetKnockback(CardData card)
+        {
+            return card.cardName switch
+            {
+                "Fireball" => 0.5f,
+                "The Log" => 0.5f,
+                "Giant Snowball" => 0.5f,
+                "Rocket" => 0f,
+                _ => 0f
             };
         }
 
@@ -234,9 +259,10 @@ namespace CRClone.Battle.Simulation
                 // Spawn skeletons over 3 seconds
                 float spawnRate = _spawnCount / 3f; // 5 per second
                 int toSpawn = (int)(spawnRate * dt);
-                for (int i = 0; i < toSpawn; i++)
+                for (int i = 0; i < toSpawn && _spawnedCount < _spawnCount; i++)
                 {
                     SpawnSkeleton(sim);
+                    _spawnedCount++;
                 }
             }
 
@@ -244,6 +270,30 @@ namespace CRClone.Battle.Simulation
             if (SpellData.cardName == "Tornado")
             {
                 ApplyTornadoPull(sim);
+            }
+
+            // Lightning strikes over time
+            if (SpellData.cardName == "Lightning")
+            {
+                _lightningStrikeTimer += dt;
+                if (_lightningStrikeTimer >= 0.4f && _lightningStrikesDone < 3)
+                {
+                    _lightningStrikeTimer = 0f;
+                    ApplyLightningStrike(sim);
+                    _lightningStrikesDone++;
+                }
+            }
+
+            // Log travel
+            if (SpellData.cardName == "The Log" || SpellData.cardName == "Barbarian Barrel" || SpellData.cardName == "Royal Delivery")
+            {
+                UpdateTravelingSpell(sim, dt);
+            }
+
+            // Royal Delivery / Barbarian Barrel spawn at end
+            if ((SpellData.cardName == "Royal Delivery" || SpellData.cardName == "Barbarian Barrel") && RemainingTime <= 0 && _spawnCardData != null)
+            {
+                SpawnAtEnd(sim);
             }
         }
 
@@ -296,6 +346,18 @@ namespace CRClone.Battle.Simulation
                 {
                     CloneUnit(target, sim);
                 }
+
+                // Earthquake: extra damage to buildings, stun
+                if (SpellData.cardName == "Earthquake")
+                {
+                    int damage = _damage;
+                    if (target.Type == EntityType.Building)
+                    {
+                        damage *= 2;
+                    }
+                    target.TakeDamage(damage, DamageType.Spell, Id);
+                    target.AddStatusEffect(new StatusEffect(StatusEffectType.Stun, 1f, 0, 0, Id));
+                }
             }
 
             // Special spells
@@ -306,19 +368,19 @@ namespace CRClone.Battle.Simulation
                     ApplyLogPush(sim);
                     break;
                 case "Lightning":
-                    ApplyLightningStrikes(sim, targets);
+                    // First strike applied above, rest in tick
                     break;
                 case "Tornado":
                     // Pull applied over duration
                     break;
                 case "Earthquake":
-                    ApplyEarthquake(sim, targets);
+                    // Already applied above
                     break;
                 case "Royal Delivery":
-                    // Spawn recruit after delay
+                    // Spawn recruit after delay - handled in UpdateTravelingSpell
                     break;
                 case "Barbarian Barrel":
-                    // Spawn barbarian at end
+                    // Spawn barbarian at end - handled in UpdateTravelingSpell
                     break;
             }
         }
@@ -355,7 +417,7 @@ namespace CRClone.Battle.Simulation
                 {
                     if (tower.OwnerPlayerId != OwnerPlayerId && tower.Type == TowerType.King)
                     {
-                        if (Vector2.Distance(target.Position, tower.Position) < 1f)
+                        if (Vector2.Distance(target.Position, tower.Position) < 1.5f)
                         {
                             tower.ActivateKingTower(KingTowerActivationCause.TornadoPull);
                         }
@@ -374,18 +436,25 @@ namespace CRClone.Battle.Simulation
                 if (target.IsDead) continue;
                 
                 // Only ground units
+                if (target.Type == EntityType.Unit)
+                {
+                    var unit = target as Unit;
+                    if (unit != null && unit.IsFlying) continue;
+                }
+                
                 // Push perpendicular to log travel (vertical push)
                 Vector2 pushDir = new Vector2(0, OwnerPlayerId == 1 ? 1 : -1);
                 target.Position += pushDir * _knockback;
             }
         }
 
-        private void ApplyLightningStrikes(BattleSimulation sim, List<Entity> targets)
+        private void ApplyLightningStrike(BattleSimulation sim)
         {
+            var targets = GetAffectedTargets(sim);
             // Lightning hits 3 highest HP targets in radius
             targets.Sort((a, b) => b.CurrentHP.CompareTo(a.CurrentHP));
             
-            int strikes = Math.Min(3, targets.Count);
+            int strikes = Math.Min(3 - _lightningStrikesDone, targets.Count);
             for (int i = 0; i < strikes; i++)
             {
                 var target = targets[i];
@@ -396,22 +465,27 @@ namespace CRClone.Battle.Simulation
             }
         }
 
-        private void ApplyEarthquake(BattleSimulation sim, List<Entity> targets)
+        private void UpdateTravelingSpell(BattleSimulation sim, float dt)
         {
-            foreach (var target in targets)
+            // Log, Barbarian Barrel, Royal Delivery travel across arena
+            float travelSpeed = SpellData.cardName == "The Log" ? 12f : 8f; // tiles per second
+            float travelDist = travelSpeed * dt;
+            _logTravelDistance -= travelDist;
+            
+            if (_logTravelDistance <= 0)
             {
-                if (target.IsDead) continue;
-
-                int damage = _damage;
-                // Double damage to buildings
-                if (target.Type == EntityType.Building)
-                {
-                    damage *= 2;
-                }
-
-                target.TakeDamage(damage, DamageType.Spell, Id);
-                target.AddStatusEffect(new StatusEffect(StatusEffectType.Stun, 1f, 0, 0, Id));
+                RemainingTime = 0;
             }
+        }
+
+        private void SpawnAtEnd(BattleSimulation sim)
+        {
+            if (_spawnCardData == null) return;
+
+            var stats = _spawnCardData.GetStats(Level);
+            var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, _spawnCardData, stats, CenterPosition, Level);
+            sim._units.Add(unit);
+            sim._entities[unit.Id] = unit;
         }
 
         private void SpawnSkeleton(BattleSimulation sim)
@@ -434,6 +508,9 @@ namespace CRClone.Battle.Simulation
             var unit = original as Unit;
             if (unit == null) return;
 
+            // Cannot clone Champions
+            if (unit.CardData.rarity == CardRarity.Champion) return;
+
             // Clone at -1 level (same HP%)
             var cardData = unit.CardData;
             int cloneLevel = Math.Max(1, unit.Level - 1);
@@ -455,23 +532,44 @@ namespace CRClone.Battle.Simulation
         {
             var targets = new List<Entity>();
 
-            if (SpellData.cardName == "The Log")
+            if (SpellData.cardName == "The Log" || SpellData.cardName == "Barbarian Barrel")
             {
-                // Log: line across arena, ground units only
-                // Simplified: all ground units in radius
+                // Log/Barbarian Barrel: line across arena, ground units only
+                // Simplified: all ground units in radius along path
                 foreach (var unit in sim._units)
                 {
-                    // Check if in log path
+                    if (unit.IsFlying) continue; // Air units unaffected
+                    
+                    // Check if in log path (rectangle along travel direction)
                     float distToLine = Math.Abs(unit.Position.y - CenterPosition.y);
-                    if (distToLine <= 0.5f && unit.Position.x >= 0 && unit.Position.x <= 18)
+                    if (distToLine <= Radius && unit.Position.x >= 0 && unit.Position.x <= 18)
                     {
                         targets.Add(unit);
+                    }
+                }
+                
+                // Also affect buildings in path
+                foreach (var building in sim._buildings)
+                {
+                    float distToLine = Math.Abs(building.Position.y - CenterPosition.y);
+                    if (distToLine <= Radius && building.Position.x >= 0 && building.Position.x <= 18)
+                    {
+                        targets.Add(building);
                     }
                 }
             }
             else if (SpellData.cardName == "Lightning")
             {
                 // All units in radius (will pick top 3 HP)
+                foreach (var entity in sim.GetAllEntitiesInRadius(CenterPosition, Radius))
+                {
+                    if (entity.OwnerPlayerId != OwnerPlayerId)
+                        targets.Add(entity);
+                }
+            }
+            else if (SpellData.cardName == "Royal Delivery")
+            {
+                // Damage in radius on landing, then spawn
                 foreach (var entity in sim.GetAllEntitiesInRadius(CenterPosition, Radius))
                 {
                     if (entity.OwnerPlayerId != OwnerPlayerId)

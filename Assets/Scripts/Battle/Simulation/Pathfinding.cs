@@ -14,6 +14,7 @@ namespace CRClone.Battle.Simulation
         private bool[,] _walkableGround;
         private bool[,] _walkableAir;
         private Node[,] _nodes;
+        private int _gridVersion = 0;
 
         public void Initialize()
         {
@@ -32,7 +33,7 @@ namespace CRClone.Battle.Simulation
                 }
             }
 
-            // Mark river as unwalkable for ground units
+            // Mark river as unwalkable for ground units (y=14 to y=18 in tiles = 28 to 36 in half-tiles)
             int riverMinY = Mathf.RoundToInt(14f / TILE_SIZE); // 28
             int riverMaxY = Mathf.RoundToInt(18f / TILE_SIZE); // 36
 
@@ -44,70 +45,157 @@ namespace CRClone.Battle.Simulation
                 }
             }
 
-            // Bridges (2 tiles wide at center)
+            // Bridges (2 tiles wide at center x=9, so half-tiles 17-18)
             int bridgeCenterX = GRID_WIDTH / 2; // 18
             for (int y = riverMinY; y < riverMaxY; y++)
             {
                 _walkableGround[bridgeCenterX - 1, y] = true; // Left bridge tile
                 _walkableGround[bridgeCenterX, y] = true;     // Right bridge tile
             }
+
+            _gridVersion++;
         }
 
-        public List<Vector2> FindPath(Vector2 start, Vector2 target, EntityType entityType)
+        /// <summary>
+        /// Updates the collision grid with current building positions.
+        /// Call this when buildings are placed or destroyed.
+        /// </summary>
+        public void UpdateBuildingCollision(List<Building> buildings)
+        {
+            // Reset to base state (river only)
+            int riverMinY = Mathf.RoundToInt(14f / TILE_SIZE);
+            int riverMaxY = Mathf.RoundToInt(18f / TILE_SIZE);
+
+            for (int x = 0; x < GRID_WIDTH; x++)
+            {
+                for (int y = 0; y < GRID_HEIGHT; y++)
+                {
+                    _walkableGround[x, y] = !(y >= riverMinY && y < riverMaxY);
+                }
+            }
+
+            // Bridges
+            int bridgeCenterX = GRID_WIDTH / 2;
+            for (int y = riverMinY; y < riverMaxY; y++)
+            {
+                _walkableGround[bridgeCenterX - 1, y] = true;
+                _walkableGround[bridgeCenterX, y] = true;
+            }
+
+            // Mark building footprints as unwalkable
+            foreach (var building in buildings)
+            {
+                if (building.IsDead) continue;
+                MarkBuildingFootprint(building);
+            }
+
+            _gridVersion++;
+        }
+
+        private void MarkBuildingFootprint(Building building)
+        {
+            // Building sizes in tiles: 2x2 (default), 3x3 (Elixir Collector), 4x4 (X-Bow, Mortar)
+            int sizeInTiles = building.CardData.cardName switch
+            {
+                "X-Bow" => 4,
+                "Mortar" => 4,
+                "Elixir Collector" => 3,
+                _ => 2
+            };
+
+            int halfSize = sizeInTiles; // In half-tiles
+            var center = WorldToGrid(building.Position);
+
+            int minX = Math.Max(0, center.x - halfSize / 2);
+            int maxX = Math.Min(GRID_WIDTH - 1, center.x + halfSize / 2);
+            int minY = Math.Max(0, center.y - halfSize / 2);
+            int maxY = Math.Min(GRID_HEIGHT - 1, center.y + halfSize / 2);
+
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int y = minY; y <= maxY; y++)
+                {
+                    _walkableGround[x, y] = false;
+                }
+            }
+        }
+
+        public List<Vector2> FindPath(Vector2 start, Vector2 target, bool isFlying)
         {
             var startNode = WorldToGrid(start);
             var targetNode = WorldToGrid(target);
 
             // Validate nodes
-            if (!IsValidNode(startNode, entityType) || !IsValidNode(targetNode, entityType))
+            if (!IsValidNode(startNode, isFlying) || !IsValidNode(targetNode, isFlying))
             {
                 // Find nearest valid nodes
-                startNode = FindNearestValidNode(startNode, entityType);
-                targetNode = FindNearestValidNode(targetNode, entityType);
+                startNode = FindNearestValidNode(startNode, isFlying);
+                targetNode = FindNearestValidNode(targetNode, isFlying);
             }
 
-            if (startNode == targetNode)
+            if (startNode.x == targetNode.x && startNode.y == targetNode.y)
             {
                 return new List<Vector2> { target };
             }
 
-            return AStar(startNode, targetNode, entityType);
+            return AStar(startNode, targetNode, isFlying);
         }
 
-        private List<Vector2> AStar(Node start, Node target, EntityType entityType)
+        public int GetPathDistance(Vector2 start, Vector2 target, bool isFlying)
+        {
+            var path = FindPath(start, target, isFlying);
+            if (path.Count <= 1) return 0;
+
+            int distance = 0;
+            for (int i = 1; i < path.Count; i++)
+            {
+                distance += Mathf.RoundToInt(Vector2.Distance(path[i - 1], path[i]) / TILE_SIZE) * 10;
+            }
+            return distance;
+        }
+
+        private List<Vector2> AStar(GridPos start, GridPos target, bool isFlying)
         {
             var openSet = new PriorityQueue<Node>();
             var closedSet = new HashSet<Node>();
 
-            start.GCost = 0;
-            start.HCost = Heuristic(start, target);
-            start.FCost = start.HCost;
-            openSet.Enqueue(start);
+            // Reset node costs for this search
+            int searchVersion = _gridVersion;
+            
+            var startNode = _nodes[start.x, start.y];
+            var targetNode = _nodes[target.x, target.y];
+
+            startNode.GCost = 0;
+            startNode.HCost = Heuristic(startNode, targetNode);
+            startNode.FCost = startNode.HCost;
+            startNode.SearchVersion = searchVersion;
+            openSet.Enqueue(startNode);
 
             while (openSet.Count > 0)
             {
                 var current = openSet.Dequeue();
 
-                if (current.X == target.X && current.Y == target.Y)
+                if (current.X == targetNode.X && current.Y == targetNode.Y)
                 {
-                    return RetracePath(start, current);
+                    return RetracePath(startNode, current);
                 }
 
                 closedSet.Add(current);
 
-                foreach (var neighbor in GetNeighbors(current, entityType))
+                foreach (var neighbor in GetNeighbors(current, isFlying))
                 {
                     if (closedSet.Contains(neighbor)) continue;
 
                     int moveCost = GetMoveCost(current, neighbor);
                     int newGCost = current.GCost + moveCost;
 
-                    if (newGCost < neighbor.GCost || !openSet.Contains(neighbor))
+                    if (neighbor.SearchVersion != searchVersion || newGCost < neighbor.GCost || !openSet.Contains(neighbor))
                     {
                         neighbor.GCost = newGCost;
-                        neighbor.HCost = Heuristic(neighbor, target);
+                        neighbor.HCost = Heuristic(neighbor, targetNode);
                         neighbor.FCost = neighbor.GCost + neighbor.HCost;
                         neighbor.Parent = current;
+                        neighbor.SearchVersion = searchVersion;
 
                         if (!openSet.Contains(neighbor))
                             openSet.Enqueue(neighbor);
@@ -118,7 +206,7 @@ namespace CRClone.Battle.Simulation
             }
 
             // No path found - return direct path
-            return new List<Vector2> { GridToWorld(target) };
+            return new List<Vector2> { GridToWorld(targetNode) };
         }
 
         private List<Vector2> RetracePath(Node start, Node end)
@@ -150,7 +238,7 @@ namespace CRClone.Battle.Simulation
             return (dx == 1 && dy == 1) ? 14 : 10;
         }
 
-        private List<Node> GetNeighbors(Node node, EntityType entityType)
+        private List<Node> GetNeighbors(Node node, bool isFlying)
         {
             var neighbors = new List<Node>();
 
@@ -163,7 +251,7 @@ namespace CRClone.Battle.Simulation
                     int nx = node.X + dx;
                     int ny = node.Y + dy;
 
-                    if (IsValidNode(new GridPos(nx, ny), entityType))
+                    if (IsValidNode(new GridPos(nx, ny), isFlying))
                     {
                         neighbors.Add(_nodes[nx, ny]);
                     }
@@ -173,22 +261,15 @@ namespace CRClone.Battle.Simulation
             return neighbors;
         }
 
-        private bool IsValidNode(GridPos pos, EntityType entityType)
+        private bool IsValidNode(GridPos pos, bool isFlying)
         {
             if (pos.x < 0 || pos.x >= GRID_WIDTH || pos.y < 0 || pos.y >= GRID_HEIGHT)
                 return false;
 
-            if (entityType == EntityType.Unit)
-            {
-                // Check if flying (would need to pass unit reference)
-                // For now, assume ground
-                return _walkableGround[pos.x, pos.y];
-            }
-
-            return _walkableGround[pos.x, pos.y];
+            return isFlying ? _walkableAir[pos.x, pos.y] : _walkableGround[pos.x, pos.y];
         }
 
-        private GridPos FindNearestValidNode(GridPos pos, EntityType entityType)
+        private GridPos FindNearestValidNode(GridPos pos, bool isFlying)
         {
             // BFS to find nearest walkable
             var queue = new Queue<GridPos>();
@@ -200,7 +281,7 @@ namespace CRClone.Battle.Simulation
             {
                 var current = queue.Dequeue();
 
-                if (IsValidNode(current, entityType))
+                if (IsValidNode(current, isFlying))
                     return current;
 
                 for (int dx = -1; dx <= 1; dx++)
@@ -245,6 +326,11 @@ namespace CRClone.Battle.Simulation
         {
             public int x, y;
             public GridPos(int x, int y) { this.x = x; this.y = y; }
+            
+            public static bool operator ==(GridPos a, GridPos b) => a.x == b.x && a.y == b.y;
+            public static bool operator !=(GridPos a, GridPos b) => a.x != b.x || a.y != b.y;
+            public override bool Equals(object obj) => obj is GridPos other && this == other;
+            public override int GetHashCode() => x * 1000 + y;
         }
 
         private class Node : IEquatable<Node>
@@ -252,6 +338,7 @@ namespace CRClone.Battle.Simulation
             public int X, Y;
             public int GCost, HCost, FCost;
             public Node Parent;
+            public int SearchVersion;
 
             public Node(int x, int y) { X = x; Y = y; }
 

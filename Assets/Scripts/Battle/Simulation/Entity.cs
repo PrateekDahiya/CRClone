@@ -80,12 +80,21 @@ namespace CRClone.Battle.Simulation
                 return;
             }
             StatusEffects.Add(effect);
+            OnStatusEffectAdded(effect);
         }
 
         public void RemoveStatusEffect(StatusEffectType type)
         {
-            StatusEffects.RemoveAll(e => e.Type == type);
+            var effect = GetStatusEffect(type);
+            if (effect != null)
+            {
+                StatusEffects.RemoveAll(e => e.Type == type);
+                OnStatusEffectRemoved(effect);
+            }
         }
+
+        protected virtual void OnStatusEffectAdded(StatusEffect effect) { }
+        protected virtual void OnStatusEffectRemoved(StatusEffect effect) { }
 
         public StatusEffect GetStatusEffect(StatusEffectType type)
         {
