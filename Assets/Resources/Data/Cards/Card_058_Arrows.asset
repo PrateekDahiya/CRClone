@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_058_Arrows
+  m_EditorClassIdentifier: 
+  cardId: 58
+  cardName: Arrows
+  nameKey: card_arrows_name
+  descriptionKey: card_arrows_desc
+  rarity: 0
+  type: 1
+  unlockArena: 1
+  elixirCost: 3
+  baseHitpoints: 100
+  baseDamage: 168
+  baseHitSpeed: 1
+  baseRange: 1.2
+  speed: 2
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_arrows
+  portraitId: portrait_arrows
+  spineAssetName: spine_arrows
+  animationClips: []
+  deploySound: sfx_unit_arrows_deploy
+  attackSound: sfx_unit_arrows_attack
+  hitSound: sfx_unit_arrows_hit
+  deathSound: sfx_unit_arrows_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

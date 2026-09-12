@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_077_Skeleton_Barrel
+  m_EditorClassIdentifier: 
+  cardId: 77
+  cardName: 'Skeleton Barrel'
+  nameKey: card_skeleton_barrel_name
+  descriptionKey: card_skeleton_barrel_desc
+  rarity: 1
+  type: 1
+  unlockArena: 1
+  elixirCost: 3
+  baseHitpoints: 400
+  baseDamage: 10
+  baseHitSpeed: 1
+  baseRange: 1.2
+  speed: 3
+  deployTime: 1
+  targetType: 3
+  count: 1
+  mechanicsJson: '{"deathEffect":true}'
+  spriteId: sprite_skeleton_barrel
+  portraitId: portrait_skeleton_barrel
+  spineAssetName: spine_skeleton_barrel
+  animationClips: []
+  deploySound: sfx_unit_skeleton_barrel_deploy
+  attackSound: sfx_unit_skeleton_barrel_attack
+  hitSound: sfx_unit_skeleton_barrel_hit
+  deathSound: sfx_unit_skeleton_barrel_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_039_Graveyard
+  m_EditorClassIdentifier: 
+  cardId: 39
+  cardName: Graveyard
+  nameKey: card_graveyard_name
+  descriptionKey: card_graveyard_desc
+  rarity: 3
+  type: 1
+  unlockArena: 1
+  elixirCost: 5
+  baseHitpoints: 100
+  baseDamage: 10
+  baseHitSpeed: 1
+  baseRange: 1.2
+  speed: 2
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_graveyard
+  portraitId: portrait_graveyard
+  spineAssetName: spine_graveyard
+  animationClips: []
+  deploySound: sfx_unit_graveyard_deploy
+  attackSound: sfx_unit_graveyard_attack
+  hitSound: sfx_unit_graveyard_hit
+  deathSound: sfx_unit_graveyard_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

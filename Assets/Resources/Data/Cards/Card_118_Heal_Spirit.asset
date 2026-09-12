@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_118_Heal_Spirit
+  m_EditorClassIdentifier: 
+  cardId: 118
+  cardName: 'Heal Spirit'
+  nameKey: card_heal_spirit_name
+  descriptionKey: card_heal_spirit_desc
+  rarity: 0
+  type: 1
+  unlockArena: 1
+  elixirCost: 1
+  baseHitpoints: 132
+  baseDamage: 10
+  baseHitSpeed: 1.1
+  baseRange: 2.5
+  speed: 4
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{"healAmount":2,"healRadius":2.5}'
+  spriteId: sprite_heal_spirit
+  portraitId: portrait_heal_spirit
+  spineAssetName: spine_heal_spirit
+  animationClips: []
+  deploySound: sfx_unit_heal_spirit_deploy
+  attackSound: sfx_unit_heal_spirit_attack
+  hitSound: sfx_unit_heal_spirit_hit
+  deathSound: sfx_unit_heal_spirit_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

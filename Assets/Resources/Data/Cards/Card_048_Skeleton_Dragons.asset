@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_048_Skeleton_Dragons
+  m_EditorClassIdentifier: 
+  cardId: 48
+  cardName: 'Skeleton Dragons'
+  nameKey: card_skeleton_dragons_name
+  descriptionKey: card_skeleton_dragons_desc
+  rarity: 2
+  type: 0
+  unlockArena: 1
+  elixirCost: 4
+  baseHitpoints: 544
+  baseDamage: 140
+  baseHitSpeed: 1.8
+  baseRange: 3.5
+  speed: 3
+  deployTime: 1
+  targetType: 2
+  count: 2
+  mechanicsJson: '{}'
+  spriteId: sprite_skeleton_dragons
+  portraitId: portrait_skeleton_dragons
+  spineAssetName: spine_skeleton_dragons
+  animationClips: []
+  deploySound: sfx_unit_skeleton_dragons_deploy
+  attackSound: sfx_unit_skeleton_dragons_attack
+  hitSound: sfx_unit_skeleton_dragons_hit
+  deathSound: sfx_unit_skeleton_dragons_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_097_Mortar
+  m_EditorClassIdentifier: 
+  cardId: 97
+  cardName: Mortar
+  nameKey: card_mortar_name
+  descriptionKey: card_mortar_desc
+  rarity: 1
+  type: 2
+  unlockArena: 1
+  elixirCost: 4
+  baseHitpoints: 1256
+  baseDamage: 220
+  baseHitSpeed: 5
+  baseRange: 4
+  speed: 2
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_mortar
+  portraitId: portrait_mortar
+  spineAssetName: spine_mortar
+  animationClips: []
+  deploySound: sfx_unit_mortar_deploy
+  attackSound: sfx_unit_mortar_attack
+  hitSound: sfx_unit_mortar_hit
+  deathSound: sfx_unit_mortar_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_063_Skeleton_Army
+  m_EditorClassIdentifier: 
+  cardId: 63
+  cardName: 'Skeleton Army'
+  nameKey: card_skeleton_army_name
+  descriptionKey: card_skeleton_army_desc
+  rarity: 1
+  type: 0
+  unlockArena: 1
+  elixirCost: 3
+  baseHitpoints: 67
+  baseDamage: 67
+  baseHitSpeed: 1.1
+  baseRange: 1.2
+  speed: 3
+  deployTime: 1
+  targetType: 0
+  count: 15
+  mechanicsJson: '{}'
+  spriteId: sprite_skeleton_army
+  portraitId: portrait_skeleton_army
+  spineAssetName: spine_skeleton_army
+  animationClips: []
+  deploySound: sfx_unit_skeleton_army_deploy
+  attackSound: sfx_unit_skeleton_army_attack
+  hitSound: sfx_unit_skeleton_army_hit
+  deathSound: sfx_unit_skeleton_army_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

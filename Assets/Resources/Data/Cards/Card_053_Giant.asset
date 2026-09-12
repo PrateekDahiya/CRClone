@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_053_Giant
+  m_EditorClassIdentifier: 
+  cardId: 53
+  cardName: Giant
+  nameKey: card_giant_name
+  descriptionKey: card_giant_desc
+  rarity: 1
+  type: 2
+  unlockArena: 1
+  elixirCost: 5
+  baseHitpoints: 3392
+  baseDamage: 210
+  baseHitSpeed: 1.5
+  baseRange: 1.2
+  speed: 1
+  deployTime: 1
+  targetType: 3
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_giant
+  portraitId: portrait_giant
+  spineAssetName: spine_giant
+  animationClips: []
+  deploySound: sfx_unit_giant_deploy
+  attackSound: sfx_unit_giant_attack
+  hitSound: sfx_unit_giant_hit
+  deathSound: sfx_unit_giant_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_110_Battle_Ram
+  m_EditorClassIdentifier: 
+  cardId: 110
+  cardName: 'Battle Ram'
+  nameKey: card_battle_ram_name
+  descriptionKey: card_battle_ram_desc
+  rarity: 0
+  type: 2
+  unlockArena: 1
+  elixirCost: 4
+  baseHitpoints: 1184
+  baseDamage: 280
+  baseHitSpeed: 1.4
+  baseRange: 1.2
+  speed: 2
+  deployTime: 1
+  targetType: 3
+  count: 1
+  mechanicsJson: '{"spawns":true,"deathEffect":true}'
+  spriteId: sprite_battle_ram
+  portraitId: portrait_battle_ram
+  spineAssetName: spine_battle_ram
+  animationClips: []
+  deploySound: sfx_unit_battle_ram_deploy
+  attackSound: sfx_unit_battle_ram_attack
+  hitSound: sfx_unit_battle_ram_hit
+  deathSound: sfx_unit_battle_ram_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

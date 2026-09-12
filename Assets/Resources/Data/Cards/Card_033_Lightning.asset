@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_033_Lightning
+  m_EditorClassIdentifier: 
+  cardId: 33
+  cardName: Lightning
+  nameKey: card_lightning_name
+  descriptionKey: card_lightning_desc
+  rarity: 3
+  type: 1
+  unlockArena: 1
+  elixirCost: 6
+  baseHitpoints: 100
+  baseDamage: 640
+  baseHitSpeed: 1
+  baseRange: 1.2
+  speed: 2
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_lightning
+  portraitId: portrait_lightning
+  spineAssetName: spine_lightning
+  animationClips: []
+  deploySound: sfx_unit_lightning_deploy
+  attackSound: sfx_unit_lightning_attack
+  hitSound: sfx_unit_lightning_hit
+  deathSound: sfx_unit_lightning_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0
