@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_018_Bandit
+  m_EditorClassIdentifier: 
+  cardId: 18
+  cardName: Bandit
+  nameKey: card_bandit_name
+  descriptionKey: card_bandit_desc
+  rarity: 3
+  type: 0
+  unlockArena: 1
+  elixirCost: 3
+  baseHitpoints: 720
+  baseDamage: 212
+  baseHitSpeed: 1.1
+  baseRange: 1.2
+  speed: 3
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{"charge":true,"chargeRange":5,"chargeMultiplier":2}'
+  spriteId: sprite_bandit
+  portraitId: portrait_bandit
+  spineAssetName: spine_bandit
+  animationClips: []
+  deploySound: sfx_unit_bandit_deploy
+  attackSound: sfx_unit_bandit_attack
+  hitSound: sfx_unit_bandit_hit
+  deathSound: sfx_unit_bandit_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

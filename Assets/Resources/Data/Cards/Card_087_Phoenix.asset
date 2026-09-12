@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_087_Phoenix
+  m_EditorClassIdentifier: 
+  cardId: 87
+  cardName: Phoenix
+  nameKey: card_phoenix_name
+  descriptionKey: card_phoenix_desc
+  rarity: 2
+  type: 0
+  unlockArena: 1
+  elixirCost: 4
+  baseHitpoints: 896
+  baseDamage: 168
+  baseHitSpeed: 1.5
+  baseRange: 3.5
+  speed: 3
+  deployTime: 1
+  targetType: 2
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_phoenix
+  portraitId: portrait_phoenix
+  spineAssetName: spine_phoenix
+  animationClips: []
+  deploySound: sfx_unit_phoenix_deploy
+  attackSound: sfx_unit_phoenix_attack
+  hitSound: sfx_unit_phoenix_hit
+  deathSound: sfx_unit_phoenix_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

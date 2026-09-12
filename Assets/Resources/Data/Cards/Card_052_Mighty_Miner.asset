@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_052_Mighty_Miner
+  m_EditorClassIdentifier: 
+  cardId: 52
+  cardName: 'Mighty Miner'
+  nameKey: card_mighty_miner_name
+  descriptionKey: card_mighty_miner_desc
+  rarity: 4
+  type: 3
+  unlockArena: 1
+  elixirCost: 4
+  baseHitpoints: 1664
+  baseDamage: 220
+  baseHitSpeed: 1.3
+  baseRange: 1.2
+  speed: 3
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_mighty_miner
+  portraitId: portrait_mighty_miner
+  spineAssetName: spine_mighty_miner
+  animationClips: []
+  deploySound: sfx_unit_mighty_miner_deploy
+  attackSound: sfx_unit_mighty_miner_attack
+  hitSound: sfx_unit_mighty_miner_hit
+  deathSound: sfx_unit_mighty_miner_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

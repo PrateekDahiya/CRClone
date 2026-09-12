@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using UnityEditor;
@@ -11,6 +12,7 @@ namespace CRClone.Editor
     public class CardDatabaseBuilder : EditorWindow
     {
         private string _cardsDatabasePath = "docs/planning/phase1/CARDS_DATABASE.md";
+        private string _cardsDocsPath = "docs/planning/phase1/cards";
         private string _outputPath = "Assets/Resources/Data/Cards";
         private bool _overwriteExisting = true;
         private Vector2 _scrollPosition;
@@ -134,11 +136,22 @@ namespace CRClone.Editor
             var lines = content.Split('\n');
 
             CardDataDefinition currentCard = null;
-            string currentSection = "";
 
             for (int i = 0; i < lines.Length; i++)
             {
                 var line = lines[i].Trim();
+
+                // Non-card subsections (e.g. "### Crown Towers") terminate the
+                // current card so tower stats can't leak into the last card.
+                if (line.StartsWith("### ") && !Regex.IsMatch(line, @"^###\s+\d+\."))
+                {
+                    if (currentCard != null)
+                    {
+                        cards.Add(currentCard);
+                        currentCard = null;
+                    }
+                    continue;
+                }
 
                 // Detect card sections (### Number. Name)
                 var cardMatch = Regex.Match(line, @"^###\s+(\d+)\.\s+(.+)$");
@@ -149,66 +162,83 @@ namespace CRClone.Editor
                         cards.Add(currentCard);
                     }
 
+                    // Strip alias suffixes like "(listed above as Rare)" or "(Champion)"
+                    // so asset names stay clean and duplicates resolve to the same card.
+                    var rawName = cardMatch.Groups[2].Value.Trim();
                     currentCard = new CardDataDefinition
                     {
                         cardId = int.Parse(cardMatch.Groups[1].Value),
-                        cardName = cardMatch.Groups[2].Value.Trim(),
+                        cardName = CleanCardName(rawName),
                         mechanicsJson = "{}"
                     };
-                    currentSection = "";
                     continue;
                 }
 
                 if (currentCard == null) continue;
 
-                // Parse key-value pairs
+                // Parse key-value pairs. Values are taken as the text after the
+                // first ':' and then number-extracted, so suffixed values like
+                // "1 sec", "2.5 tiles" or "Previous card +1" cannot throw.
                 if (line.StartsWith("- **Type**:"))
                 {
-                    currentCard.type = ParseCardType(line.Substring(10).Trim());
+                    currentCard.type = ParseCardType(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("type");
                 }
                 else if (line.StartsWith("- **Rarity**:"))
                 {
-                    currentCard.rarity = ParseRarity(line.Substring(12).Trim());
+                    currentCard.rarity = ParseRarity(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("rarity");
                 }
                 else if (line.StartsWith("- **Elixir**:"))
                 {
-                    currentCard.elixirCost = int.Parse(line.Substring(11).Trim());
+                    currentCard.elixirCost = ParseLeadingInt(ValueAfterColon(line), currentCard.elixirCost);
+                    currentCard.parsedFields.Add("elixir");
                 }
-                else if (line.StartsWith("- **HP**:") || line.StartsWith("- **HP**:"))
+                else if (line.StartsWith("- **HP**:"))
                 {
-                    currentCard.baseHitpoints = ParseNumber(line.Substring(6).Trim());
+                    currentCard.baseHitpoints = ParseNumber(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("hp");
                 }
                 else if (line.StartsWith("- **Damage**:"))
                 {
-                    currentCard.baseDamage = ParseNumber(line.Substring(11).Trim());
+                    currentCard.baseDamage = ParseNumber(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("damage");
                 }
                 else if (line.StartsWith("- **Hit Speed**:"))
                 {
-                    currentCard.baseHitSpeed = ParseFloat(line.Substring(13).Trim());
+                    currentCard.baseHitSpeed = ParseFloat(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("hitspeed");
                 }
                 else if (line.StartsWith("- **Range**:"))
                 {
-                    currentCard.baseRange = ParseFloat(line.Substring(9).Trim());
+                    currentCard.baseRange = ParseFloat(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("range");
                 }
                 else if (line.StartsWith("- **Target**:"))
                 {
-                    currentCard.targetType = ParseTargetType(line.Substring(10).Trim());
+                    currentCard.targetType = ParseTargetType(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("target");
                 }
                 else if (line.StartsWith("- **Speed**:"))
                 {
-                    currentCard.speed = ParseSpeedType(line.Substring(10).Trim());
+                    currentCard.speed = ParseSpeedType(ValueAfterColon(line));
+                    currentCard.parsedFields.Add("speed");
                 }
                 else if (line.StartsWith("- **Deploy Time**:"))
                 {
-                    currentCard.deployTime = int.Parse(line.Substring(16).Trim());
+                    currentCard.deployTime = ParseLeadingInt(ValueAfterColon(line), currentCard.deployTime);
+                    currentCard.parsedFields.Add("deploy");
                 }
                 else if (line.StartsWith("- **Count**:"))
                 {
-                    currentCard.count = int.Parse(line.Substring(10).Trim());
+                    currentCard.count = ParseLeadingInt(ValueAfterColon(line), currentCard.count);
+                    currentCard.parsedFields.Add("count");
                 }
                 else if (line.StartsWith("- **Mechanic**:") || line.StartsWith("- **Mechanics**:"))
                 {
-                    currentCard.mechanicsJson = ParseMechanics(line.Substring(line.IndexOf(':') + 1).Trim());
+                    var mechanics = ParseMechanics(ValueAfterColon(line));
+                    currentCard.mechanicsJson = mechanics;
+                    if (mechanics != "{}") currentCard.parsedFields.Add("mechanics");
                 }
                 else if (line.StartsWith("- **") && line.Contains("**:"))
                 {
@@ -228,6 +258,17 @@ namespace CRClone.Editor
                 cards.Add(currentCard);
             }
 
+            // Placeholder entries such as "Princess (listed above as Legendary)"
+            // carry no primary stats (parsedFields is empty); inherit them from
+            // the referenced full entry so every emitted asset has real,
+            // non-default data. Runs before the doc merge so stub docs (e.g.
+            // champion specs with "Elixir Cost: ?") can't mask a placeholder.
+            ResolvePlaceholderCards(cards);
+
+            // Supplement fields still missing from the main database with the
+            // per-card specification docs (table + Basic Info format).
+            MergePerCardDocs(cards);
+
             // Apply defaults for missing values
             foreach (var card in cards)
             {
@@ -235,6 +276,158 @@ namespace CRClone.Editor
             }
 
             return cards;
+        }
+
+        private void ResolvePlaceholderCards(List<CardDataDefinition> cards)
+        {
+            foreach (var card in cards)
+            {
+                if (card.parsedFields.Count > 0) continue;
+
+                CardDataDefinition donor = null;
+                foreach (var other in cards)
+                {
+                    if (other == card || other.parsedFields.Count == 0) continue;
+                    if (string.Equals(other.cardName, card.cardName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        donor = other;
+                        break;
+                    }
+                }
+
+                if (donor == null)
+                {
+                    Debug.LogWarning($"[CardDatabaseBuilder] No stat source for placeholder card {card.cardId}: {card.cardName}");
+                    continue;
+                }
+
+                card.type = donor.type;
+                card.rarity = donor.rarity;
+                card.elixirCost = donor.elixirCost;
+                card.baseHitpoints = donor.baseHitpoints;
+                card.baseDamage = donor.baseDamage;
+                card.baseHitSpeed = donor.baseHitSpeed;
+                card.baseRange = donor.baseRange;
+                card.speed = donor.speed;
+                card.deployTime = donor.deployTime;
+                card.targetType = donor.targetType;
+                card.count = donor.count;
+                card.mechanicsJson = donor.mechanicsJson;
+                foreach (var kvp in donor.extraFields) card.extraFields[kvp.Key] = kvp.Value;
+                foreach (var field in donor.parsedFields) card.parsedFields.Add(field);
+            }
+        }
+
+        private void MergePerCardDocs(List<CardDataDefinition> cards)
+        {
+            if (!Directory.Exists(_cardsDocsPath)) return;
+
+            var docByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in Directory.GetFiles(_cardsDocsPath, "*.md", SearchOption.AllDirectories))
+            {
+                var key = SanitizeId(Path.GetFileNameWithoutExtension(file));
+                if (!docByName.ContainsKey(key)) docByName[key] = file;
+            }
+
+            foreach (var card in cards)
+            {
+                if (!docByName.TryGetValue(SanitizeId(card.cardName), out var docPath)) continue;
+                MergeSingleDoc(card, File.ReadAllText(docPath));
+            }
+        }
+
+        private void MergeSingleDoc(CardDataDefinition card, string docContent)
+        {
+            foreach (var rawLine in docContent.Split('\n'))
+            {
+                var line = rawLine.Trim();
+                string key = null;
+                string value = null;
+
+                // Table rows: | Stat | Value |
+                if (line.StartsWith("|"))
+                {
+                    var cells = line.Split('|');
+                    if (cells.Length < 3) continue;
+                    key = cells[1].Trim();
+                    value = cells[2].Trim();
+                    if (key.StartsWith("---") || key.Equals("Stat", StringComparison.OrdinalIgnoreCase)) continue;
+                }
+                // Basic Info bullets: - **Elixir Cost**: 3
+                else if (line.StartsWith("- **"))
+                {
+                    var m = Regex.Match(line, @"-\s\*\*(.+?)\*\*:\s*(.+)");
+                    if (!m.Success) continue;
+                    key = m.Groups[1].Value.Trim();
+                    value = m.Groups[2].Value.Trim();
+                }
+                else
+                {
+                    continue;
+                }
+
+                var norm = key.ToLowerInvariant();
+                if ((norm == "elixir cost" || norm == "elixir") && !card.parsedFields.Contains("elixir"))
+                {
+                    int v = ParseLeadingInt(value, 0);
+                    if (v > 0) { card.elixirCost = v; card.parsedFields.Add("elixir"); }
+                }
+                else if (norm == "rarity" && !card.parsedFields.Contains("rarity"))
+                {
+                    card.rarity = ParseRarity(value);
+                    card.parsedFields.Add("rarity");
+                }
+                else if ((norm == "type") && !card.parsedFields.Contains("type"))
+                {
+                    card.type = ParseCardType(value);
+                    card.parsedFields.Add("type");
+                }
+                else if ((norm == "hitpoints" || norm == "hp") && !card.parsedFields.Contains("hp"))
+                {
+                    int v = ParseNumber(value);
+                    if (v > 0) { card.baseHitpoints = v; card.parsedFields.Add("hp"); }
+                }
+                else if ((norm == "damage") && !card.parsedFields.Contains("damage"))
+                {
+                    int v = ParseNumber(value);
+                    if (v > 0) { card.baseDamage = v; card.parsedFields.Add("damage"); }
+                }
+                else if ((norm == "hit speed") && !card.parsedFields.Contains("hitspeed"))
+                {
+                    float v = ParseFloat(value);
+                    if (v > 0) { card.baseHitSpeed = v; card.parsedFields.Add("hitspeed"); }
+                }
+                else if ((norm == "range") && !card.parsedFields.Contains("range"))
+                {
+                    float v = ParseFloat(value);
+                    if (v > 0) { card.baseRange = v; card.parsedFields.Add("range"); }
+                }
+                else if ((norm == "speed") && !card.parsedFields.Contains("speed"))
+                {
+                    card.speed = ParseSpeedType(value);
+                    card.parsedFields.Add("speed");
+                }
+                else if ((norm == "deploy time") && !card.parsedFields.Contains("deploy"))
+                {
+                    int v = ParseLeadingInt(value, 0);
+                    if (v > 0) { card.deployTime = v; card.parsedFields.Add("deploy"); }
+                }
+                else if ((norm == "target") && !card.parsedFields.Contains("target"))
+                {
+                    card.targetType = ParseTargetType(value);
+                    card.parsedFields.Add("target");
+                }
+                else if ((norm == "count") && !card.parsedFields.Contains("count"))
+                {
+                    int v = ParseLeadingInt(value, 0);
+                    if (v > 0) { card.count = v; card.parsedFields.Add("count"); }
+                }
+                else if ((norm == "mechanic" || norm == "mechanics") && !card.parsedFields.Contains("mechanics"))
+                {
+                    var mechanics = ParseMechanics(value);
+                    if (mechanics != "{}") { card.mechanicsJson = mechanics; card.parsedFields.Add("mechanics"); }
+                }
+            }
         }
 
         private CardType ParseCardType(string input)
@@ -250,11 +443,18 @@ namespace CRClone.Editor
 
         private CardRarity ParseRarity(string input)
         {
-            input = input.ToLower();
-            if (input.Contains("champion")) return CardRarity.Champion;
-            if (input.Contains("legendary")) return CardRarity.Legendary;
-            if (input.Contains("epic")) return CardRarity.Epic;
-            if (input.Contains("rare")) return CardRarity.Rare;
+            // Rarity changes are written "Epic → Rare (changed)": the
+            // effective rarity is the segment after the arrow.
+            string effective = input ?? string.Empty;
+            int arrow = effective.LastIndexOf('→');
+            if (arrow < 0) arrow = effective.LastIndexOf("->", StringComparison.Ordinal);
+            if (arrow >= 0) effective = effective.Substring(arrow + 1);
+
+            effective = effective.ToLower();
+            if (effective.Contains("champion")) return CardRarity.Champion;
+            if (effective.Contains("legendary")) return CardRarity.Legendary;
+            if (effective.Contains("epic")) return CardRarity.Epic;
+            if (effective.Contains("rare")) return CardRarity.Rare;
             return CardRarity.Common;
         }
 
@@ -270,112 +470,152 @@ namespace CRClone.Editor
 
         private SpeedType ParseSpeedType(string input)
         {
-            input = input.ToLower();
-            if (input.Contains("very fast")) return SpeedType.VeryFast;
-            if (input.Contains("fast")) return SpeedType.Fast;
-            if (input.Contains("medium")) return SpeedType.Medium;
-            if (input.Contains("slow")) return SpeedType.Slow;
-            if (input.Contains("very slow")) return SpeedType.VerySlow;
+            // Match the leading speed token so parentheticals like
+            // "Medium (Fast when charging)" don't mis-resolve to Fast.
+            var s = (input ?? string.Empty).Trim().ToLowerInvariant();
+            if (s.StartsWith("very fast")) return SpeedType.VeryFast;
+            if (s.StartsWith("very slow")) return SpeedType.VerySlow;
+            if (s.StartsWith("fast")) return SpeedType.Fast;
+            if (s.StartsWith("medium")) return SpeedType.Medium;
+            if (s.StartsWith("slow")) return SpeedType.Slow;
             return SpeedType.Medium;
         }
 
         private int ParseNumber(string input)
         {
             // Handle "123 (×6 = 738 total)" format
-            var match = Regex.Match(input, @"(\d+)");
-            return match.Success ? int.Parse(match.Groups[1].Value) : 0;
+            var match = Regex.Match(input ?? string.Empty, @"(\d+)");
+            return match.Success ? int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
+        }
+
+        private int ParseLeadingInt(string input, int fallback)
+        {
+            // Only a leading number counts, so "Previous card +1" keeps the default.
+            var match = Regex.Match(input ?? string.Empty, @"^\s*(\d+)");
+            return match.Success ? int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : fallback;
         }
 
         private float ParseFloat(string input)
         {
             // Handle "1.2 sec" format
-            var match = Regex.Match(input, @"([\d.]+)");
-            return match.Success ? float.Parse(match.Groups[1].Value) : 0f;
+            var match = Regex.Match(input ?? string.Empty, @"([\d.]+)");
+            return match.Success ? float.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : 0f;
+        }
+
+        private static string ValueAfterColon(string line)
+        {
+            int idx = line.IndexOf(':');
+            return idx >= 0 ? line.Substring(idx + 1).Trim() : string.Empty;
+        }
+
+        private static string CleanCardName(string rawName)
+        {
+            // Drop trailing alias suffixes: "(listed above as Rare)", "(Champion)".
+            return Regex.Replace(rawName ?? string.Empty, @"\s*\(.*?\)\s*$", "").Trim();
+        }
+
+        private static string SanitizeId(string name)
+        {
+            return (name ?? string.Empty).ToLowerInvariant()
+                .Replace(" ", "_")
+                .Replace(".", "")
+                .Replace("'", "")
+                .Replace("-", "_");
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            var s = (name ?? string.Empty).Replace(" ", "_").Replace("-", "_").Replace(".", "").Replace("'", "");
+            return Regex.Replace(s, @"[^A-Za-z0-9_]", "");
+        }
+
+        private static string F(float v)
+        {
+            return v.ToString(CultureInfo.InvariantCulture);
         }
 
         private string ParseMechanics(string input)
         {
-            // Convert mechanic description to JSON
-            var mechanics = new Dictionary<string, object>();
+            // Convert mechanic description to JSON. Built manually because
+            // Unity's JsonUtility cannot serialize dictionaries (it would
+            // emit "{}" for every card).
+            var parts = new List<string>();
+            var text = input ?? string.Empty;
 
-            if (input.Contains("splash") || input.Contains("area"))
+            if (text.Contains("splash") || text.Contains("area"))
             {
-                var radiusMatch = Regex.Match(input, @"(\d+\.?\d*)\s*tile");
-                if (radiusMatch.Success)
-                {
-                    mechanics["splashRadius"] = float.Parse(radiusMatch.Groups[1].Value);
-                }
-                else
-                {
-                    mechanics["splashRadius"] = 1.5f;
-                }
+                var radiusMatch = Regex.Match(text, @"(\d+\.?\d*)\s*tile");
+                float radius = radiusMatch.Success
+                    ? float.Parse(radiusMatch.Groups[1].Value, CultureInfo.InvariantCulture)
+                    : 1.5f;
+                parts.Add($"\"splashRadius\":{F(radius)}");
             }
 
-            if (input.Contains("charge"))
+            if (text.Contains("charge"))
             {
-                mechanics["charge"] = true;
-                var rangeMatch = Regex.Match(input, @"(\d+\.?\d*)\s*tile");
+                parts.Add("\"charge\":true");
+                var rangeMatch = Regex.Match(text, @"(\d+\.?\d*)\s*tile");
                 if (rangeMatch.Success)
                 {
-                    mechanics["chargeRange"] = float.Parse(rangeMatch.Groups[1].Value);
+                    parts.Add($"\"chargeRange\":{F(float.Parse(rangeMatch.Groups[1].Value, CultureInfo.InvariantCulture))}");
                 }
-                mechanics["chargeMultiplier"] = 2f;
+                parts.Add("\"chargeMultiplier\":2");
             }
 
-            if (input.Contains("spawn"))
+            if (text.Contains("spawn"))
             {
-                mechanics["spawns"] = true;
-                // Extract spawn details from description
+                parts.Add("\"spawns\":true");
             }
 
-            if (input.Contains("slow"))
+            if (text.Contains("slow"))
             {
-                mechanics["slowPercent"] = 0.35f;
-                mechanics["slowDuration"] = 1.5f;
+                parts.Add("\"slowPercent\":0.35");
+                parts.Add("\"slowDuration\":1.5");
             }
 
-            if (input.Contains("stun"))
+            if (text.Contains("stun"))
             {
-                mechanics["stunDuration"] = 0.5f;
+                parts.Add("\"stunDuration\":0.5");
             }
 
-            if (input.Contains("knockback"))
+            if (text.Contains("knockback"))
             {
-                mechanics["knockback"] = 0.5f;
+                parts.Add("\"knockback\":0.5");
             }
 
-            if (input.Contains("invisible"))
+            if (text.Contains("invisible"))
             {
-                mechanics["invisible"] = true;
+                parts.Add("\"invisible\":true");
             }
 
-            if (input.Contains("ramp") || input.Contains("ramps"))
+            if (text.Contains("ramp") || text.Contains("ramps"))
             {
-                mechanics["damageRamp"] = true;
+                parts.Add("\"damageRamp\":true");
             }
 
-            if (input.Contains("pierce"))
+            if (text.Contains("pierce"))
             {
-                mechanics["pierce"] = true;
+                parts.Add("\"pierce\":true");
             }
 
-            if (input.Contains("heal"))
+            if (text.Contains("heal"))
             {
-                mechanics["healAmount"] = ParseNumber(input);
-                mechanics["healRadius"] = 2.5f;
+                parts.Add($"\"healAmount\":{ParseNumber(text)}");
+                parts.Add("\"healRadius\":2.5");
             }
 
-            if (input.Contains("chain"))
+            if (text.Contains("chain"))
             {
-                mechanics["chainTargets"] = 3;
+                parts.Add("\"chainTargets\":3");
             }
 
-            if (input.Contains("death"))
+            if (text.Contains("death"))
             {
-                mechanics["deathEffect"] = true;
+                parts.Add("\"deathEffect\":true");
             }
 
-            return JsonUtility.ToJson(new MechanicsData { data = mechanics });
+            if (parts.Count == 0) return "{}";
+            return "{" + string.Join(",", parts) + "}";
         }
 
         private void ApplyDefaults(CardDataDefinition card)
@@ -391,11 +631,7 @@ namespace CRClone.Editor
             if (string.IsNullOrEmpty(card.mechanicsJson)) card.mechanicsJson = "{}";
 
             // Generate sprite/portrait IDs
-            var nameId = card.cardName.ToLower()
-                .Replace(" ", "_")
-                .Replace(".", "")
-                .Replace("'", "")
-                .Replace("-", "_");
+            var nameId = SanitizeId(card.cardName);
             card.spriteId = $"sprite_{nameId}";
             card.portraitId = $"portrait_{nameId}";
             card.spineAssetName = $"spine_{nameId}";
@@ -409,8 +645,7 @@ namespace CRClone.Editor
 
         private CardParseResult CreateCardAsset(CardDataDefinition def)
         {
-            var assetPath = $"{_outputPath}/Card_{def.cardId:D3}_{def.cardName.Replace(" ", "_")}.asset";
-            assetPath = assetPath.Replace("'", "").Replace(".", "").Replace("-", "_");
+            var assetPath = $"{_outputPath}/Card_{def.cardId:D3}_{SanitizeFileName(def.cardName)}.asset";
 
             CardData asset = null;
             bool isNew = false;
@@ -441,8 +676,8 @@ namespace CRClone.Editor
 
             asset.cardId = def.cardId;
             asset.cardName = def.cardName;
-            asset.nameKey = $"card_{def.cardName.ToLower().Replace(" ", "_")}_name";
-            asset.descriptionKey = $"card_{def.cardName.ToLower().Replace(" ", "_")}_desc";
+            asset.nameKey = $"card_{SanitizeId(def.cardName)}_name";
+            asset.descriptionKey = $"card_{SanitizeId(def.cardName)}_desc";
             asset.rarity = def.rarity;
             asset.type = def.type;
             asset.unlockArena = 1;
@@ -490,6 +725,7 @@ namespace CRClone.Editor
         {
             public int cardId;
             public string cardName;
+            public HashSet<string> parsedFields = new HashSet<string>();
             public CardType type = CardType.Troop;
             public CardRarity rarity = CardRarity.Common;
             public int elixirCost = 3;
@@ -522,10 +758,5 @@ namespace CRClone.Editor
             public bool isNew;
         }
 
-        [Serializable]
-        private class MechanicsData
-        {
-            public Dictionary<string, object> data;
-        }
     }
 }

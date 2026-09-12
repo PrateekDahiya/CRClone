@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_049_Royal_Delivery
+  m_EditorClassIdentifier: 
+  cardId: 49
+  cardName: 'Royal Delivery'
+  nameKey: card_royal_delivery_name
+  descriptionKey: card_royal_delivery_desc
+  rarity: 2
+  type: 1
+  unlockArena: 1
+  elixirCost: 3
+  baseHitpoints: 100
+  baseDamage: 256
+  baseHitSpeed: 1
+  baseRange: 1.2
+  speed: 2
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_royal_delivery
+  portraitId: portrait_royal_delivery
+  spineAssetName: spine_royal_delivery
+  animationClips: []
+  deploySound: sfx_unit_royal_delivery_deploy
+  attackSound: sfx_unit_royal_delivery_attack
+  hitSound: sfx_unit_royal_delivery_hit
+  deathSound: sfx_unit_royal_delivery_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0

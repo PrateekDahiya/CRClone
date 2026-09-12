@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81fc15d327a76826f38e2fb385ea5c29, type: 3}
+  m_Name: Card_050_Skeleton_King
+  m_EditorClassIdentifier: 
+  cardId: 50
+  cardName: 'Skeleton King'
+  nameKey: card_skeleton_king_name
+  descriptionKey: card_skeleton_king_desc
+  rarity: 4
+  type: 3
+  unlockArena: 1
+  elixirCost: 4
+  baseHitpoints: 1728
+  baseDamage: 200
+  baseHitSpeed: 1.3
+  baseRange: 1.2
+  speed: 2
+  deployTime: 1
+  targetType: 0
+  count: 1
+  mechanicsJson: '{}'
+  spriteId: sprite_skeleton_king
+  portraitId: portrait_skeleton_king
+  spineAssetName: spine_skeleton_king
+  animationClips: []
+  deploySound: sfx_unit_skeleton_king_deploy
+  attackSound: sfx_unit_skeleton_king_attack
+  hitSound: sfx_unit_skeleton_king_hit
+  deathSound: sfx_unit_skeleton_king_death
+  voiceLines: []
+  isEnabled: 1
+  releaseVersion: 1.0
