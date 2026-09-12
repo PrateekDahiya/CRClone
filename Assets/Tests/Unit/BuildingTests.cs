@@ -4,7 +4,8 @@ using UnityEngine;
 using CRClone.Battle.Simulation;
 using CRClone.Core;
 using CRClone.Tests.TestFixtures;
-using CRClone.Network;
+using PlayerInput = CRClone.Network.PlayerInput;
+using InputType = CRClone.Network.InputType;
 
 namespace CRClone.Tests.Unit
 {
@@ -15,298 +16,150 @@ namespace CRClone.Tests.Unit
         public void Cannon_Attacks_Ground_Units_Only()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            SetPlayerElixir(2, 10);
-            
-            // Cannon (P1) vs Knight (P2 ground) and Minions (P2 air)
-            var cannonInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000045, // Cannon
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, cannonInput);
-            
-            var knightInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000040, // Knight
-                position = new Vector2(9, 14)
-            };
-            Simulation.QueueInput(2, knightInput);
-            
-            var minionInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000047, // Minions (air)
-                position = new Vector2(9, 14)
-            };
-            Simulation.QueueInput(2, minionInput);
-            
-            Tick();
-            Step(3f);
-            
-            var cannon = FindBuilding(1, 26000045);
-            var knight = FindUnit(2, 26000040);
-            var minions = FindUnits(2, 26000047);
-            
+
+            PlayCard(1, 94, new Vector2(9, 10)); // Cannon, P1 zone
+            var knight = PlayCard(2, 89, new Vector2(9, 20));
+            var minions = PlayCard(2, 93, new Vector2(10, 20));
+            var cannon = FindBuilding(1, 94);
+
             Assert.IsNotNull(cannon);
             Assert.IsNotNull(knight);
             Assert.IsNotNull(minions);
-            Assert.Greater(minions.Count, 0);
-            
-            // Cannon should target knight (ground)
+
+            Step(3f);
+
             Assert.AreEqual(knight, cannon.Target, "Cannon should target ground unit");
-            
-            // Minions should not be targeted
-            Assert.AreNotEqual(minions[0], cannon.Target, "Cannon should not target air units");
+            Assert.AreNotEqual(minions, cannon.Target, "Cannon should not target air units");
         }
 
         [Test]
         public void Tesla_Retracts_When_No_Targets()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            
-            var teslaInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000062, // Tesla
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, teslaInput);
-            
-            Tick();
-            
-            // Wait for Tesla to retract (no targets in range)
-            Step(5f);
-            
-            var tesla = FindBuilding(1, 26000062);
+
+            PlayCard(1, 95, new Vector2(9, 10)); // Tesla, P1 zone
+
+            Step(5f); // No enemies: Tesla stays retracted
+
+            var tesla = FindBuilding(1, 95);
             Assert.IsNotNull(tesla);
             Assert.IsTrue(tesla.IsRetracted, "Tesla should retract when no targets");
-            Assert.IsTrue(tesla.IsInvulnerable, "Retracted Tesla should be invulnerable");
+            Assert.IsTrue(tesla.IsInvulnerableWhileRetracted, "Retracted Tesla should be invulnerable");
         }
 
         [Test]
         public void Tesla_Pops_Up_When_Target_In_Range()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            SetPlayerElixir(2, 10);
-            
-            // Place Tesla
-            var teslaInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000062, // Tesla
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, teslaInput);
-            Tick();
-            
-            // Wait for retract
+
+            PlayCard(1, 95, new Vector2(9, 10));
             Step(2f);
-            
-            var tesla = FindBuilding(1, 26000062);
+
+            var tesla = FindBuilding(1, 95);
+            Assert.IsNotNull(tesla);
             Assert.IsTrue(tesla.IsRetracted, "Tesla should be retracted initially");
-            
-            // Spawn Knight in range
-            var knightInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000040, // Knight
-                position = new Vector2(9, 12)
-            };
-            Simulation.QueueInput(2, knightInput);
-            Tick();
-            
-            Step(1f);
-            
-            tesla = FindBuilding(1, 26000062);
+
+            PlayCard(2, 89, new Vector2(9, 20)); // Knight marches into Tesla range
+            Step(2f);
+
+            tesla = FindBuilding(1, 95);
+            Assert.IsNotNull(tesla);
             Assert.IsFalse(tesla.IsRetracted, "Tesla should pop up when target in range");
-            Assert.IsFalse(tesla.IsInvulnerable, "Popped up Tesla should be vulnerable");
+            Assert.IsFalse(tesla.IsInvulnerableWhileRetracted, "Popped up Tesla should be vulnerable");
         }
 
         [Test]
         public void Spawner_Building_Spawns_Units_Over_Time()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            
-            var goblinHutInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000064, // Goblin Hut
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, goblinHutInput);
-            Tick();
-            
-            // Step 30 seconds (Goblin Hut lifetime is ~30s, spawns every ~4.9s)
-            Step(30f);
-            
-            var spearGoblins = FindUnits(1, 26000069); // Spear Goblin (spawned by Goblin Hut)
-            
-            // Should spawn ~6 spear goblins over lifetime
-            Assert.AreEqual(6, spearGoblins.Count, "Goblin Hut should spawn 6 spear goblins");
+
+            PlayCard(1, 30, new Vector2(9, 10)); // Goblin Hut, 30s lifetime
+
+            Step(30f); // Full lifetime: immediate + 5 waves every 4.9s
+
+            var spearGoblins = FindUnitsByName(1, "Spear Goblins");
+            Assert.AreEqual(6, spearGoblins.Count, "Goblin Hut should spawn 6 Spear Goblins");
         }
 
         [Test]
         public void Building_Lifetime_Expires()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            
-            var cannonInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000045, // Cannon (30s lifetime)
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, cannonInput);
-            Tick();
-            
-            // Step past lifetime
+
+            PlayCard(1, 94, new Vector2(9, 10)); // Cannon, 30s lifetime
+
             Step(31f);
-            
-            var cannon = FindBuilding(1, 26000045);
-            Assert.IsNull(cannon, "Cannon should be removed after lifetime expires");
+
+            Assert.IsNull(FindBuilding(1, 94), "Cannon should be removed after lifetime expires");
         }
 
         [Test]
-        public void Inferno_Tower_Ramps_Damage()
+        public void Inferno_Tower_Engages_High_HP_Target()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            SetPlayerElixir(2, 10);
-            
-            var infernoInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000063, // Inferno Tower
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, infernoInput);
-            
-            var giantInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000055, // Golem (high HP target)
-                position = new Vector2(9, 14)
-            };
-            Simulation.QueueInput(2, giantInput);
-            
-            Tick();
-            
-            // Let Inferno Tower ramp up
+
+            PlayCard(1, 31, new Vector2(9, 10)); // Inferno Tower
+            var pekka = PlayCard(2, 25, new Vector2(9, 20)); // P.E.K.K.A tank
+
             Step(3f);
-            
-            var inferno = FindBuilding(1, 26000063);
-            var giant = FindUnit(2, 26000055);
-            
+
+            var inferno = FindBuilding(1, 31);
             Assert.IsNotNull(inferno);
-            Assert.IsNotNull(giant);
-            
-            // Inferno should be targeting giant and ramping damage
-            Assert.AreEqual(giant, inferno.Target);
-            
-            // Check that damage has ramped (Inferno Tower starts at 50, ramps to 1600)
-            // This would require exposing current damage - for now just verify targeting
+            Assert.IsNotNull(pekka);
+            Assert.AreEqual(pekka, inferno.Target, "Inferno Tower should engage the tank");
+            Assert.Less(pekka.CurrentHP, pekka.MaxHP, "Tank should take Inferno damage");
         }
 
         [Test]
         public void Elixir_Collector_Produces_Elixir()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            
-            var collectorInput = new PlayerInput
-            {
-                type = InputType.PlayCard,
-                cardId = 26000067, // Elixir Collector
-                position = new Vector2(9, 10)
-            };
-            Simulation.QueueInput(1, collectorInput);
-            Tick();
-            
+
+            PlayCard(1, 99, new Vector2(9, 10)); // Elixir Collector costs 6
             int initialElixir = Simulation.Player1.Elixir;
-            
-            // Collector produces 1 elixir every ~9.8s, total 2 over lifetime
-            Step(10f);
-            
-            Assert.Greater(Simulation.Player1.Elixir, initialElixir, "Collector should produce elixir");
+
+            Step(10f); // Normal regen + collector tick(s)
+
+            Assert.Greater(Simulation.Player1.Elixir, initialElixir,
+                "Collector should produce elixir on top of regen");
         }
 
         [Test]
         public void Building_Cannot_Be_Placed_On_Enemy_Side()
         {
             InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            
-            // Try to place cannon on enemy side
-            var cannonInput = new PlayerInput
+            SetPlayerElixir(1, 10);
+
+            var input = new PlayerInput
             {
                 type = InputType.PlayCard,
-                cardId = 26000045, // Cannon
+                cardId = 94, // Cannon
                 position = new Vector2(9, 20) // Enemy side
             };
-            Simulation.QueueInput(1, cannonInput);
+            Simulation.QueueInput(1, input);
             Tick();
-            
-            var cannon = FindBuilding(1, 26000045);
-            Assert.IsNull(cannon, "Building should not be placed on enemy side");
-            AssertElixir(1, 10, "Elixir should not be spent on invalid placement");
+
+            Assert.IsNull(FindBuilding(1, 94), "Building should not be placed on enemy side");
+            AssertElixir(1, 10);
         }
 
         [Test]
-        public void Building_Cannot_Be_Placed_Across_River()
+        public void Troop_Cannot_Be_Placed_Across_River()
         {
-            InitializeSimulation(TestDecks.BuildingDeck, TestDecks.BalancedDeck);
-                        SetPlayerElixir(1, 10);
-            
-            // Try to place cannon across river
-            var cannonInput = new PlayerInput
+            InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
+            SetPlayerElixir(1, 10);
+
+            var input = new PlayerInput
             {
                 type = InputType.PlayCard,
-                cardId = 26000045, // Cannon
+                cardId = 89, // Knight
                 position = new Vector2(9, 15) // Across river
             };
-            Simulation.QueueInput(1, cannonInput);
+            Simulation.QueueInput(1, input);
             Tick();
-            
-            var cannon = FindBuilding(1, 26000045);
-            Assert.IsNull(cannon, "Building should not be placed across river");
-        }
 
-        private Building FindBuilding(int playerId, int cardId)
-        {
-            foreach (var building in Simulation.Buildings)
-            {
-                if (building.OwnerPlayerId == playerId && building.CardData.cardId == cardId)
-                    return building;
-            }
-            return null;
-        }
-
-        private Unit FindUnit(int playerId, int cardId)
-        {
-            foreach (var unit in Simulation.Units)
-            {
-                if (unit.OwnerPlayerId == playerId && unit.CardData.cardId == cardId)
-                    return unit;
-            }
-            return null;
-        }
-
-        private List<Unit> FindUnits(int playerId, int cardId)
-        {
-            var result = new List<Unit>();
-            foreach (var unit in Simulation.Units)
-            {
-                if (unit.OwnerPlayerId == playerId && unit.CardData.cardId == cardId)
-                    result.Add(unit);
-            }
-            return result;
+            Assert.IsNull(FindUnit(1, 89), "Ground troop should not deploy across the river");
+            AssertElixir(1, 10);
         }
     }
 }

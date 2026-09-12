@@ -5,6 +5,16 @@ using CRClone.Core;
 using FixedMath = CRClone.Core.Math;
 using CRClone.Data;
 using CRClone.Network;
+// AGENT6-COMPAT: CRClone.Core and CRClone.Network both declare BattleStatus,
+// EntityType, CardType and CardRarity with DIFFERENT values. The simulation
+// logic below was written against the Core (gameplay) values, so pin the
+// Core meanings explicitly. Network message types (PlayerInput, InputType,
+// GameStateMessage) resolve via the CRClone.Network using above.
+// TODO(Agent 1/2): de-duplicate the Core/Network enums properly.
+using BattleStatus = CRClone.Core.BattleStatus;
+using EntityType = CRClone.Core.EntityType;
+using CardType = CRClone.Core.CardType;
+using CardRarity = CRClone.Core.CardRarity;
 
 namespace CRClone.Battle.Simulation
 {
@@ -38,8 +48,10 @@ namespace CRClone.Battle.Simulation
         internal uint _nextEntityId = 1000; // Start after tower IDs
 
         // Input queues
-        private readonly Queue<NetworkClient.PlayerInput> _p1Inputs = new();
-        private readonly Queue<NetworkClient.PlayerInput> _p2Inputs = new();
+        // AGENT6-COMPAT: NetworkClient has no nested PlayerInput type; the
+        // message type is CRClone.Network.PlayerInput (MessageTypes.cs).
+        private readonly Queue<PlayerInput> _p1Inputs = new();
+        private readonly Queue<PlayerInput> _p2Inputs = new();
 
         // Events for replay
         private readonly List<BattleEvent> _eventLog = new();
@@ -178,26 +190,27 @@ namespace CRClone.Battle.Simulation
             }
         }
 
-        public void QueueInput(int playerId, NetworkClient.PlayerInput input)
+        public void QueueInput(int playerId, PlayerInput input)
         {
             if (playerId == 1) _p1Inputs.Enqueue(input);
             else if (playerId == 2) _p2Inputs.Enqueue(input);
         }
 
-        private void ApplyInput(int playerId, NetworkClient.PlayerInput input)
+        private void ApplyInput(int playerId, PlayerInput input)
         {
             var player = playerId == 1 ? _player1 : _player2;
             var opponent = playerId == 1 ? _player2 : _player1;
 
             switch (input.type)
             {
-                case NetworkClient.InputType.PlayCard:
-                    PlayCard(player, opponent, input.cardId, input.position);
+                case InputType.PlayCard:
+                    PlayCard(player, opponent, (int)input.cardId, input.position);
                     break;
-                case NetworkClient.InputType.CastSpell:
-                    CastSpell(player, opponent, input.spellId, input.position);
+                case InputType.CastSpell:
+                    CastSpell(player, opponent, (int)input.spellId, input.position);
                     break;
-                case NetworkClient.InputType.UseChampionAbility:
+                // AGENT6-COMPAT: enum value is ChampionAbility (MessageTypes.cs), not UseChampionAbility.
+                case InputType.ChampionAbility:
                     UseChampionAbility(player, opponent, input.position);
                     break;
             }
@@ -591,6 +604,12 @@ namespace CRClone.Battle.Simulation
             };
         }
 
+        // AGENT6-FIX (review: Agent 1): fractional elixir accumulators. The old
+        // code added one tick's fraction to the integer Elixir and floored it,
+        // discarding the fraction every tick, so elixir NEVER regenerated.
+        private FixedMath.Fixed _p1ElixirFrac = FixedMath.Fixed.Zero;
+        private FixedMath.Fixed _p2ElixirFrac = FixedMath.Fixed.Zero;
+
         private void UpdateElixir(float dt)
         {
             FixedMath.Fixed rate = GetElixirRate();
@@ -599,8 +618,8 @@ namespace CRClone.Battle.Simulation
             int prevElixir1 = _player1.Elixir;
             int prevElixir2 = _player2.Elixir;
 
-            _player1.Elixir = Math.Min(_config.maxElixir, (int)Math.Floor((FixedMath.Fixed.FromInt(_player1.Elixir) + elixirPerTick).ToFloat()));
-            _player2.Elixir = Math.Min(_config.maxElixir, (int)Math.Floor((FixedMath.Fixed.FromInt(_player2.Elixir) + elixirPerTick).ToFloat()));
+            AccumulateElixir(_player1, ref _p1ElixirFrac, elixirPerTick);
+            AccumulateElixir(_player2, ref _p2ElixirFrac, elixirPerTick);
 
             // Emit ElixirChanged events
             if (_player1.Elixir != prevElixir1)
@@ -625,6 +644,22 @@ namespace CRClone.Battle.Simulation
             }
 
             // Elixir collector production handled in building update
+        }
+
+        private void AccumulateElixir(PlayerState player, ref FixedMath.Fixed frac, FixedMath.Fixed perTick)
+        {
+            if (player.Elixir >= _config.maxElixir)
+            {
+                frac = FixedMath.Fixed.Zero; // Bar full: no phantom accumulation
+                return;
+            }
+            frac += perTick;
+            int whole = frac.ToInt();
+            if (whole > 0)
+            {
+                player.Elixir = Math.Min(_config.maxElixir, player.Elixir + whole);
+                frac -= FixedMath.Fixed.FromInt(whole);
+            }
         }
 
         private FixedMath.Fixed GetElixirRate()
@@ -982,7 +1017,8 @@ namespace CRClone.Battle.Simulation
             _entities[projectile.Id] = projectile;
         }
 
-        public void Reconcile(NetworkClient.GameStateMessage serverState)
+        // AGENT6-COMPAT: message type is CRClone.Network.GameStateMessage.
+        public void Reconcile(GameStateMessage serverState)
         {
             _serverTick = serverState.tick;
             // TODO: Reconcile entity positions, HP, etc.

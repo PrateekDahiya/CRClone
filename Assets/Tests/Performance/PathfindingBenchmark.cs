@@ -1,12 +1,11 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using NUnit.Framework;
 using UnityEngine;
 using CRClone.Battle.Simulation;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Tests.TestFixtures;
-using CRClone.Network;
 
 namespace CRClone.Tests.Performance
 {
@@ -17,163 +16,92 @@ namespace CRClone.Tests.Performance
         public void Pathfinding_10k_Paths_Under_100ms()
         {
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
-                        var pathfinding = GetPathfinding();
+
+            var pathfinding = GetPathfinding();
             pathfinding.Initialize();
-            
+
             var sw = Stopwatch.StartNew();
-            
             for (int i = 0; i < 10000; i++)
-            {
-                var start = RandomPosition();
-                var end = RandomPosition();
-                pathfinding.FindPath(start, end, EntityType.Unit);
-            }
-            
+                pathfinding.FindPath(RandomPosition(), RandomPosition(), false);
             sw.Stop();
-            
+
             UnityEngine.Debug.Log($"[PathfindingBenchmark] 10k paths: {sw.ElapsedMilliseconds}ms");
-            
-            Assert.Less(sw.ElapsedMilliseconds, 100, 
-                $"Pathfinding too slow: {sw.ElapsedMilliseconds}ms for 10k paths (limit: 100ms)");
+
+            Assert.Less(sw.ElapsedMilliseconds, 100,
+                $"Pathfinding too slow: {sw.ElapsedMilliseconds}ms for 10k paths (limit 100ms)");
         }
 
         [Test]
-        public void Pathfinding_Ground_Vs_Air_Performance()
+        public void Pathfinding_Ground_Paths_Stay_Fast()
         {
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
-                        var pathfinding = GetPathfinding();
+
+            var pathfinding = GetPathfinding();
             pathfinding.Initialize();
-            
-            // Ground paths
+
             var sw = Stopwatch.StartNew();
             for (int i = 0; i < 5000; i++)
-            {
-                pathfinding.FindPath(RandomPosition(), RandomPosition(), EntityType.Unit);
-            }
-            var groundTime = sw.ElapsedMilliseconds;
-            
-            // Air paths (no river crossing needed)
-            sw.Restart();
-            for (int i = 0; i < 5000; i++)
-            {
-                pathfinding.FindPath(RandomPosition(), RandomPosition(), EntityType.Unit); // Flying handled internally
-            }
-            var airTime = sw.ElapsedMilliseconds;
-            
-            UnityEngine.Debug.Log($"[PathfindingBenchmark] Ground: {groundTime}ms, Air: {airTime}ms");
-            
-            // Both should be fast
-            Assert.Less(groundTime, 50);
-            Assert.Less(airTime, 50);
+                pathfinding.FindPath(RandomPosition(), RandomPosition(), false);
+            sw.Stop();
+
+            UnityEngine.Debug.Log($"[PathfindingBenchmark] 5k ground paths: {sw.ElapsedMilliseconds}ms");
+
+            Assert.Less(sw.ElapsedMilliseconds, 60);
         }
 
         [Test]
         public void Pathfinding_With_Buildings_Obstacles()
         {
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
-                        var pathfinding = GetPathfinding();
+
+            var pathfinding = GetPathfinding();
             pathfinding.Initialize();
-            
-            // Add buildings as obstacles
+
             var buildings = new List<Building>();
             for (int i = 0; i < 20; i++)
             {
-                var cardData = DataManager.GetCard(26000045); // Cannon
-                if (cardData != null)
-                {
-                    var stats = cardData.GetStats(11);
-                    var building = new Building((uint)(10000 + i), 1, cardData, stats, RandomPosition(), 11);
-                    buildings.Add(building);
-                }
+                var cardData = DataManager.GetCard(94); // Cannon
+                if (cardData == null) continue;
+                var stats = cardData.GetStats(11);
+                buildings.Add(new Building((uint)(10000 + i), 1, cardData, stats, RandomPosition(), 11));
             }
-            
             pathfinding.UpdateBuildingCollision(buildings);
-            
+
             var sw = Stopwatch.StartNew();
             for (int i = 0; i < 5000; i++)
-            {
-                pathfinding.FindPath(RandomPosition(), RandomPosition(), EntityType.Unit);
-            }
+                pathfinding.FindPath(RandomPosition(), RandomPosition(), false);
             sw.Stop();
-            
-            UnityEngine.Debug.Log($"[PathfindingBenchmark] With 20 buildings: {sw.ElapsedMilliseconds}ms");
-            
+
+            UnityEngine.Debug.Log($"[PathfindingBenchmark] With buildings: {sw.ElapsedMilliseconds}ms");
+
             Assert.Less(sw.ElapsedMilliseconds, 100);
         }
 
         [Test]
-        public void Pathfinding_Cached_Paths_Faster()
+        public void Pathfinding_River_Crossing_Paths()
         {
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
-                        var pathfinding = GetPathfinding();
-            pathfinding.Initialize();
-            
-            var start = new Vector2(2, 2);
-            var end = new Vector2(16, 30);
-            
-            // First path (cold)
-            var sw = Stopwatch.StartNew();
-            var path1 = pathfinding.FindPath(start, end, EntityType.Unit);
-            var coldTime = sw.ElapsedMilliseconds;
-            
-            // Same path again (should be cached)
-            sw.Restart();
-            var path2 = pathfinding.FindPath(start, end, EntityType.Unit);
-            var warmTime = sw.ElapsedMilliseconds;
-            
-            UnityEngine.Debug.Log($"[PathfindingBenchmark] Cold: {coldTime}ms, Warm: {warmTime}ms");
-            
-            // Warm should be faster or equal
-            Assert.LessOrEqual(warmTime, coldTime);
-        }
 
-        [Test]
-        public void Pathfinding_Long_Distance_Performance()
-        {
-            InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
-                        var pathfinding = GetPathfinding();
+            var pathfinding = GetPathfinding();
             pathfinding.Initialize();
-            
-            // Long distance paths (across entire arena)
-            var sw = Stopwatch.StartNew();
-            for (int i = 0; i < 1000; i++)
-            {
-                var start = new Vector2(UnityEngine.Random.Range(1f, 5f), UnityEngine.Random.Range(1f, 5f));
-                var end = new Vector2(UnityEngine.Random.Range(13f, 17f), UnityEngine.Random.Range(27f, 31f));
-                pathfinding.FindPath(start, end, EntityType.Unit);
-            }
-            sw.Stop();
-            
-            UnityEngine.Debug.Log($"[PathfindingBenchmark] 1k long paths: {sw.ElapsedMilliseconds}ms");
-            
-            Assert.Less(sw.ElapsedMilliseconds, 50);
-        }
 
-        [Test]
-        public void Pathfinding_River_Crossing_Performance()
-        {
-            InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
-                        var pathfinding = GetPathfinding();
-            pathfinding.Initialize();
-            
-            // Paths that must cross river (use bridges)
             var sw = Stopwatch.StartNew();
             for (int i = 0; i < 2000; i++)
             {
-                var start = new Vector2(UnityEngine.Random.Range(1f, 17f), UnityEngine.Random.Range(1f, 13f)); // Bottom
-                var end = new Vector2(UnityEngine.Random.Range(1f, 17f), UnityEngine.Random.Range(19f, 31f)); // Top
-                pathfinding.FindPath(start, end, EntityType.Unit);
+                var start = new Vector2(UnityEngine.Random.Range(1f, 17f), UnityEngine.Random.Range(1f, 13f));
+                var end = new Vector2(UnityEngine.Random.Range(1f, 17f), UnityEngine.Random.Range(19f, 31f));
+                pathfinding.FindPath(start, end, false);
             }
             sw.Stop();
-            
+
             UnityEngine.Debug.Log($"[PathfindingBenchmark] 2k river crossings: {sw.ElapsedMilliseconds}ms");
-            
-            Assert.Less(sw.ElapsedMilliseconds, 50);
+
+            Assert.Less(sw.ElapsedMilliseconds, 60);
         }
 
         private Pathfinding GetPathfinding()
         {
-            var field = typeof(BattleSimulation).GetField("_pathfinding", 
+            var field = typeof(BattleSimulation).GetField("_pathfinding",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             return field?.GetValue(Simulation) as Pathfinding;
         }

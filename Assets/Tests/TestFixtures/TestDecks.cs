@@ -1,82 +1,108 @@
-using System.Collections.Generic;
-using CRClone.Core;
-using CRClone.Battle.Simulation;
-using CRClone.Data;
-
 namespace CRClone.Tests.TestFixtures
 {
+    /// <summary>
+    /// Card IDs match Assets/Resources/Data/Cards/*.asset (cardId 1-122).
+    /// Knight=89 Archers=90 Giant=53 Musketeer=54 Fireball=57 Cannon=94
+    /// Skeletons=92 Minions=93 Zap=59 Log=1 Poison=34 Rocket=32 Arrows=58
+    /// Freeze=35 Tornado=38 Tesla=95 InfernoTower=31 GoblinHut=30 Furnace=100
+    /// BombTower=96 ElixirCollector=99 ArcherQueen=51 SkeletonKing=50 MightyMiner=52
+    /// </summary>
     public static class TestDecks
     {
         public static readonly int[] BalancedDeck = new int[]
         {
-            26000040, // Knight
-            26000041, // Archers
-            26000042, // Giant
-            26000043, // Musketeer
-            26000044, // Fireball
-            26000045, // Cannon
-            26000046, // Skeletons
-            26000047  // Minions
+            89, // Knight
+            90, // Archers
+            53, // Giant
+            54, // Musketeer
+            57, // Fireball
+            94, // Cannon
+            92, // Skeletons
+            93  // Minions
         };
 
         public static readonly int[] SpellHeavyDeck = new int[]
         {
-            26000044, // Fireball
-            26000048, // Zap
-            26000049, // The Log
-            26000050, // Poison
-            26000051, // Rocket
-            26000052, // Arrows
-            26000053, // Freeze
-            26000054  // Tornado
+            57, // Fireball
+            59, // Zap
+            1,  // The Log
+            34, // Poison
+            32, // Rocket
+            58, // Arrows
+            35, // Freeze
+            38  // Tornado
         };
 
         public static readonly int[] TankDeck = new int[]
         {
-            26000042, // Giant
-            26000055, // Golem
-            26000056, // Mega Knight
-            26000057, // Lava Hound
-            26000043, // Musketeer
-            26000058, // Wizard
-            26000044, // Fireball
-            26000048  // Zap
+            53, // Giant
+            25, // P.E.K.K.A
+            8,  // Mega Knight
+            7,  // Lava Hound
+            54, // Musketeer
+            21, // Wizard
+            57, // Fireball
+            59  // Zap
         };
 
         public static readonly int[] CycleDeck = new int[]
         {
-            26000046, // Skeletons
-            26000059, // Ice Spirit
-            26000040, // Knight
-            26000048, // Zap
-            26000049, // The Log
-            26000041, // Archers
-            26000060, // Cannon
-            26000061  // Ice Golem
+            92, // Skeletons
+            10, // Ice Spirit
+            89, // Knight
+            59, // Zap
+            1,  // The Log
+            90, // Archers
+            94, // Cannon
+            91  // Goblins
         };
 
         public static readonly int[] ChampionDeck = new int[]
         {
-            27000000, // Archer Queen
-            26000040, // Knight
-            26000041, // Archers
-            26000044, // Fireball
-            26000045, // Cannon
-            26000046, // Skeletons
-            26000047, // Minions
-            26000048  // Zap
+            51, // Archer Queen
+            89, // Knight
+            90, // Archers
+            57, // Fireball
+            94, // Cannon
+            92, // Skeletons
+            93, // Minions
+            59  // Zap
+        };
+
+        public static readonly int[] SkeletonKingDeck = new int[]
+        {
+            50, // Skeleton King
+            89, // Knight
+            90, // Archers
+            57, // Fireball
+            94, // Cannon
+            92, // Skeletons
+            93, // Minions
+            59  // Zap
+        };
+
+        public static readonly int[] MightyMinerDeck = new int[]
+        {
+            52, // Mighty Miner
+            89, // Knight
+            90, // Archers
+            57, // Fireball
+            94, // Cannon
+            92, // Skeletons
+            93, // Minions
+            59  // Zap
         };
 
         public static readonly int[] BuildingDeck = new int[]
         {
-            26000045, // Cannon
-            26000062, // Tesla
-            26000063, // Inferno Tower
-            26000064, // Goblin Hut
-            26000065, // Furnace
-            26000066, // Bomb Tower
-            26000067, // Elixir Collector
-            26000044  // Fireball
+            94, // Cannon
+            95, // Tesla
+            31, // Inferno Tower
+            30, // Goblin Hut
+            100, // Furnace
+            96, // Bomb Tower
+            99, // Elixir Collector
+            57  // Fireball
         };
     }
 }

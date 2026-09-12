@@ -1,11 +1,13 @@
 using System;
-using CRClone.Network;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using CRClone.Battle.Simulation;
 using CRClone.Core;
 using CRClone.Data;
+using PlayerInput = CRClone.Network.PlayerInput;
+using InputType = CRClone.Network.InputType;
+using BattleStatus = CRClone.Core.BattleStatus;
 
 namespace CRClone.Tests.TestFixtures
 {
@@ -15,11 +17,22 @@ namespace CRClone.Tests.TestFixtures
         protected GameConfig Config { get; private set; }
         protected DataManager DataManager { get; private set; }
 
+        private GameObject _testObjects;
+
         [SetUp]
         public virtual void SetUp()
         {
+            _testObjects = new GameObject("TestServices");
             Config = CreateTestConfig();
-            DataManager = CreateTestDataManager();
+
+            var configManager = _testObjects.AddComponent<ConfigManager>();
+            configManager.Initialize(Config);
+            Services.Register<ConfigManager>(configManager);
+
+            DataManager = _testObjects.AddComponent<DataManager>();
+            DataManager.Initialize();
+            Services.Register<DataManager>(DataManager);
+
             Simulation = new BattleSimulation();
         }
 
@@ -28,6 +41,14 @@ namespace CRClone.Tests.TestFixtures
         {
             Simulation?.Dispose();
             Simulation = null;
+
+            Services.Unregister<ConfigManager>();
+            Services.Unregister<DataManager>();
+            if (_testObjects != null)
+            {
+                UnityEngine.Object.DestroyImmediate(_testObjects);
+                _testObjects = null;
+            }
         }
 
         protected virtual GameConfig CreateTestConfig()
@@ -59,21 +80,9 @@ namespace CRClone.Tests.TestFixtures
             return config;
         }
 
-        protected virtual DataManager CreateTestDataManager()
-        {
-            var dm = new GameObject("TestDataManager").AddComponent<DataManager>();
-            dm.Initialize();
-            return dm;
-        }
-
         protected void InitializeSimulation(int[] deck1, int[] deck2, ulong seed = 12345)
         {
             Simulation.Initialize(Config, seed, deck1, deck2);
-        }
-
-        protected void InitializeSimulation(BattleScenario scenario)
-        {
-            InitializeSimulation(scenario.Player1Deck, scenario.Player2Deck, scenario.Seed);
         }
 
         protected void Tick(float dt = BattleSimulation.FIXED_DT)
@@ -100,12 +109,6 @@ namespace CRClone.Tests.TestFixtures
             }
         }
 
-        protected void SetDoubleElixir(bool enabled)
-        {
-            // Force double elixir by manipulating internal state
-            // This is a test helper - in real code we'd use a test config
-        }
-
         protected PlayerState GetPlayer(int playerId)
         {
             return playerId == 1 ? Simulation.Player1 : Simulation.Player2;
@@ -117,79 +120,105 @@ namespace CRClone.Tests.TestFixtures
             if (player != null) player.Elixir = elixir;
         }
 
-        protected bool PlayCard(int playerId, int cardId, Vector2 position)
+        /// <summary>
+        /// Queues a PlayCard input with topped-up elixir so tests exercise
+        /// mechanics rather than the economy. Returns the spawned unit if any.
+        /// Valid P1 deploy: y &lt;= 13. Valid P2 deploy: y &gt;= 19. Spells: anywhere.
+        /// </summary>
+        protected Unit PlayCard(int playerId, int cardId, Vector2 position)
         {
+            SetPlayerElixir(playerId, 10);
             var input = new PlayerInput
             {
                 type = InputType.PlayCard,
-                cardId = cardId,
+                cardId = (uint)cardId,
                 position = position
             };
             Simulation.QueueInput(playerId, input);
             Tick();
-            return true; // Would need to check actual result
+            return FindUnit(playerId, cardId) ?? FindBuildingAsUnit(playerId, cardId);
         }
 
-        protected bool CastSpell(int playerId, int spellId, Vector2 position)
+        protected void CastSpell(int playerId, int spellId, Vector2 position)
         {
+            SetPlayerElixir(playerId, 10);
             var input = new PlayerInput
             {
-                type = InputType.CastSpell,
-                spellId = spellId,
+                type = InputType.PlayCard,
+                cardId = (uint)spellId,
                 position = position
             };
             Simulation.QueueInput(playerId, input);
             Tick();
-            return true;
         }
 
-        protected Unit SpawnUnit(int cardId, int playerId, Vector2 position, int level = 11)
+        protected void UseChampionAbility(int playerId, Vector2 position)
         {
-            var cardData = DataManager.GetCard(cardId);
-            if (cardData == null) return null;
-
-            var stats = cardData.GetStats(level);
-            var unit = new Unit(Simulation.GetNextEntityIdForTest(), playerId, cardData, stats, position, level);
-            
-            // We need to use reflection or add a test method to add the unit
-            // For now, use the simulation's internal method via reflection or queue input
-            // This is a helper for tests that need direct unit spawning
-            return unit;
+            SetPlayerElixir(playerId, 10);
+            var input = new PlayerInput
+            {
+                type = InputType.ChampionAbility,
+                position = position
+            };
+            Simulation.QueueInput(playerId, input);
+            Tick();
         }
 
-        protected List<Entity> GetEntitiesInRadius(Vector2 center, float radius)
+        protected Unit FindUnit(int playerId, int cardId)
         {
-            return Simulation.GetAllEntitiesInRadius(center, radius);
+            foreach (var unit in Simulation.Units)
+            {
+                if (unit.OwnerPlayerId == playerId && unit.CardData.cardId == cardId)
+                    return unit;
+            }
+            return null;
         }
 
-        protected Entity GetEntity(uint id)
+        protected List<Unit> FindUnits(int playerId, int cardId)
         {
-            return Simulation.GetEntity(id);
+            var result = new List<Unit>();
+            foreach (var unit in Simulation.Units)
+            {
+                if (unit.OwnerPlayerId == playerId && unit.CardData.cardId == cardId)
+                    result.Add(unit);
+            }
+            return result;
         }
 
-        protected void AssertUnitAlive(Unit unit, string message = "")
+        protected List<Unit> FindUnitsByName(int playerId, string cardName)
         {
-            Assert.IsNotNull(unit, $"Unit should not be null: {message}");
-            Assert.IsFalse(unit.IsDead, $"Unit should be alive: {message}");
+            var result = new List<Unit>();
+            foreach (var unit in Simulation.Units)
+            {
+                if (unit.OwnerPlayerId == playerId && unit.CardData.cardName == cardName)
+                    result.Add(unit);
+            }
+            return result;
         }
 
-        protected void AssertUnitDead(Unit unit, string message = "")
+        protected Building FindBuilding(int playerId, int cardId)
         {
-            Assert.IsNotNull(unit, $"Unit should not be null: {message}");
-            Assert.IsTrue(unit.IsDead, $"Unit should be dead: {message}");
+            foreach (var building in Simulation.Buildings)
+            {
+                if (building.OwnerPlayerId == playerId && building.CardData.cardId == cardId)
+                    return building;
+            }
+            return null;
         }
 
-        protected void AssertEntityInRadius(Entity entity, Vector2 center, float radius, string message = "")
+        private Unit FindBuildingAsUnit(int playerId, int cardId)
         {
-            Assert.IsNotNull(entity, $"Entity should not be null: {message}");
-            float dist = Vector2.Distance(entity.Position, center);
-            Assert.LessOrEqual(dist, radius + entity.CollisionRadius, 
-                $"Entity should be within radius: {message}");
+            return null; // Buildings are not units; kept for API symmetry
         }
 
-        protected void AssertApproximate(float expected, float actual, float tolerance, string message = "")
+        protected Tower FindTower(int playerId, TowerType type)
         {
-            Assert.AreEqual(expected, actual, tolerance, message);
+            foreach (var tower in Simulation.Towers)
+            {
+                if (tower.OwnerPlayerId == playerId && tower.Type == type)
+                    return tower;
+            }
+            return null;
         }
 
         protected void AssertElixir(int playerId, int expectedElixir, int tolerance = 1)
@@ -198,35 +227,5 @@ namespace CRClone.Tests.TestFixtures
             Assert.IsNotNull(player, $"Player {playerId} should exist");
             Assert.AreEqual(expectedElixir, player.Elixir, tolerance, $"Player {playerId} elixir mismatch");
         }
-
-        protected int CountUnitsOfType(int playerId, int cardId)
-        {
-            int count = 0;
-            foreach (var unit in Simulation.Units)
-            {
-                if (unit.OwnerPlayerId == playerId && unit.CardData.cardId == cardId)
-                    count++;
-            }
-            return count;
-        }
-    }
-
-    // Extension for BattleSimulation to expose internal methods for testing
-    public static class BattleSimulationTestExtensions
-    {
-        public static uint GetNextEntityIdForTest(this BattleSimulation sim)
-        {
-            // Access private field via reflection for testing
-            var field = typeof(BattleSimulation).GetField("_nextEntityId", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (field != null)
-            {
-                uint id = (uint)field.GetValue(sim);
-                field.SetValue(sim, id + 1);
-                return id;
-            }
-            return 9999; // Fallback
-        }
     }
 }
-

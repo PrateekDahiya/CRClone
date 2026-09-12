@@ -246,6 +246,15 @@ private void ParseSpellStats(CardData card, CardLevelStats stats)
                 if (Duration <= 0) RemainingTime = 0;
             }
 
+            // AGENT6-FIX (review: Agent 1): traveling damage spells (Fireball,
+            // Rocket) never dealt damage - no arrival logic existed. Apply the
+            // impact effect once the travel time elapses at the target point.
+            if (!_isInstant && !_hasAppliedInstant && Type == SpellType.Damage && RemainingTime <= 0)
+            {
+                ApplyInstantEffect(sim);
+                _hasAppliedInstant = true;
+            }
+
             // Damage over time spells
             if (Type == SpellType.DamageOverTime)
             {
