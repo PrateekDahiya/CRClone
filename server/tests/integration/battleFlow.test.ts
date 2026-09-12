@@ -3,7 +3,8 @@ jest.mock('../../src/battle/BattleServer', () => ({
 }));
 
 import { BattleSimulation } from '../../src/battle/BattleSimulation';
-import { BattleStatus, BattleType } from '../../src/types';
+import { BattleStatus, BattleType, EntityState, EntityType, PlayerBattleInfo } from '../../src/types';
+import { ReplayRecorder } from '../../src/battle/ReplayRecorder';
 import { Matchmaker } from '../../src/matchmaking/Matchmaker';
 
 function makeConfig() {
@@ -37,14 +38,88 @@ describe('Battle Flow Integration (server simulation)', () => {
     expect(sim.CurrentTick).toBe(120);
   });
 
-  test('Deterministic: same seed => same event log length', () => {
-    const run = () => {
+  // ISSUE-601: same seed + same scripted inputs must yield identical
+  // trajectories. Compares elixir + tower-HP + ReplayRecorder entity-hash
+  // trajectories across two runs, not just event-log length.
+  //
+  // NOTE (upgrade path): this asserts elixir + tower-HP trajectories rather
+  // than unit/building entity lists because ISSUE-201 is still open — the
+  // server sim's PlayCard/CastSpell are log-only stubs that spawn nothing, so
+  // Units/Buildings stay empty on every run. Once Agent-2's spawn fix lands,
+  // extend `snapshotEntities` assertions below to require non-empty unit lists
+  // and divergent cross-seed entity hashes (spawn jitter is RNG-driven).
+  test('Deterministic: same seed => identical elixir + tower-HP + entity-hash trajectories', () => {
+    const P1INFO: PlayerBattleInfo = { playerId: 'p1', username: 'p1', trophies: 4000, deck: DECK, kingTowerLevel: 11, princessTowerLevel: 11 };
+    const P2INFO: PlayerBattleInfo = { playerId: 'p2', username: 'p2', trophies: 4000, deck: DECK, kingTowerLevel: 11, princessTowerLevel: 11 };
+
+    function snapshotEntities(sim: BattleSimulation): EntityState[] {
+      const out: EntityState[] = [];
+      for (const u of sim.Units) {
+        out.push({
+          id: u.Id, type: EntityType.Unit, owner: u.OwnerPlayerId,
+          position: { x: u.Position.x.toFloat(), y: u.Position.y.toFloat() },
+          velocity: { x: u.Velocity.x.toFloat(), y: u.Velocity.y.toFloat() },
+          hp: u.CurrentHP, maxHp: u.MaxHP, isDead: u.IsDead,
+        });
+      }
+      for (const b of sim.Buildings) {
+        out.push({
+          id: b.Id, type: EntityType.Building, owner: b.OwnerPlayerId,
+          position: { x: b.Position.x.toFloat(), y: b.Position.y.toFloat() },
+          velocity: { x: 0, y: 0 },
+          hp: b.CurrentHP, maxHp: b.MaxHP, isDead: b.IsDead,
+        });
+      }
+      for (const t of sim.Towers) {
+        out.push({
+          id: t.Id, type: EntityType.Tower, owner: t.OwnerPlayerId,
+          position: { x: t.Position.x.toFloat(), y: t.Position.y.toFloat() },
+          velocity: { x: 0, y: 0 },
+          hp: t.CurrentHP, maxHp: t.MaxHP, isDead: t.IsDead,
+        });
+      }
+      out.sort((a, b) => a.id - b.id);
+      return out;
+    }
+
+    const run = (seed: bigint) => {
       const sim = new BattleSimulation();
-      sim.Initialize(makeConfig(), 777n, DECK, DECK, new Map());
-      for (let i = 0; i < 300; i++) sim.Tick();
-      return { ticks: sim.CurrentTick, events: sim.ReplayLog.length, status: sim.Status };
+      sim.Initialize(makeConfig(), seed, DECK, DECK, new Map());
+      const recorder = new ReplayRecorder('battle-det', BattleType.Ladder, seed, P1INFO, P2INFO);
+      const trajectory: Array<{ tick: number; p1Elixir: number; p2Elixir: number; towerHP: number[]; entitiesHash: string }> = [];
+      for (let i = 0; i < 600; i++) {
+        if (i === 10) sim.QueueInput(1, { type: 'play_card', cardId: DECK[0], position: { x: 9, y: 8 }, clientTick: i });
+        if (i === 20) sim.QueueInput(2, { type: 'play_card', cardId: DECK[0], position: { x: 9, y: 24 }, clientTick: i });
+        sim.Tick();
+        if (sim.CurrentTick % 60 === 0) {
+          recorder.recordFrame(sim.CurrentTick, new Map(), snapshotEntities(sim));
+          const frames = recorder.getFrames();
+          trajectory.push({
+            tick: sim.CurrentTick,
+            p1Elixir: sim.Player1.Elixir,
+            p2Elixir: sim.Player2.Elixir,
+            towerHP: sim.Towers.map((t) => t.CurrentHP),
+            entitiesHash: frames[frames.length - 1].entitiesHash,
+          });
+        }
+      }
+      return {
+        trajectory,
+        status: sim.Status,
+        replayEvents: sim.ReplayLog.length,
+        frameHashes: recorder.getFrames().map((f) => f.entitiesHash),
+      };
     };
-    expect(run()).toEqual(run());
+
+    const a = run(777n);
+    const b = run(777n);
+    expect(a).toEqual(b);
+    // Anti-vacuous: the compared trajectory is live, not constant/empty.
+    expect(a.trajectory).toHaveLength(10);
+    expect(a.trajectory[9].p1Elixir).toBeGreaterThan(a.trajectory[0].p1Elixir);
+    expect(a.trajectory[0].towerHP).toHaveLength(6);
+    expect(a.replayEvents).toBeGreaterThan(0);
+    expect(a.frameHashes).toHaveLength(10);
   });
 
   test('Elixir generates over time and caps at max', () => {
