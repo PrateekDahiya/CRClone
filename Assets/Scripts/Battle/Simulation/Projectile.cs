@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using CRClone.Core;
 using CRClone.Data;
@@ -14,6 +15,7 @@ namespace CRClone.Battle.Simulation
         public bool IsHoming { get; private set; }
         public bool IsBeam { get; private set; }
         public bool IsMortarShot { get; set; }
+        public bool Is360Splash { get; set; } // Valkyrie, Dark Prince
         public float SplashRadius { get; set; }
         public int PierceCount { get; private set; }
         public int ChainCount { get; private set; }
@@ -23,7 +25,7 @@ namespace CRClone.Battle.Simulation
 
         private Vector2 _startPosition;
         private float _travelTime = 0f;
-        private uint[] _hitEntities;
+        private HashSet<uint> _hitEntities = new HashSet<uint>();
 
         public Projectile(uint id, int ownerPlayerId, Entity source, Entity target, int damage, float speed, string mechanics)
             : base(id, ownerPlayerId, EntityType.Projectile, source.Position, 1)
@@ -127,35 +129,54 @@ namespace CRClone.Battle.Simulation
             // Apply damage
             int finalDamage = Damage;
 
-            // Damage falloff for splash
-            if (SplashRadius > 0)
+            // 360 splash (Valkyrie, Dark Prince) - splash from source position
+            if (Is360Splash && SplashRadius > 0)
+            {
+                foreach (var entity in sim.GetPotentialTargets(this))
+                {
+                    if (Vector2.Distance(entity.Position, Source.Position) <= SplashRadius)
+                    {
+                        entity.TakeDamage(finalDamage, DamageType, Source.Id);
+                    }
+                }
+            }
+            // Normal splash - splash from impact point
+            else if (SplashRadius > 0)
             {
                 // Main target takes full damage
                 Target.TakeDamage(finalDamage, DamageType, Source.Id);
+                _hitEntities.Add(Target.Id);
 
                 // Splash damage to nearby entities
                 foreach (var entity in sim.GetPotentialTargets(this))
                 {
-                    if (entity.Id == Target.Id) continue;
+                    if (_hitEntities.Contains(entity.Id)) continue;
                     if (Vector2.Distance(entity.Position, Target.Position) <= SplashRadius)
                     {
                         entity.TakeDamage((int)(finalDamage * 0.5f), DamageType.Area, Source.Id);
+                        _hitEntities.Add(entity.Id);
                     }
                 }
             }
             else
             {
                 Target.TakeDamage(finalDamage, DamageType, Source.Id);
+                _hitEntities.Add(Target.Id);
             }
 
-            // Handle pierce (Magic Archer)
+            // Handle pierce (Magic Archer) - continue in same direction
             if (PierceCount > 0)
             {
-                // Projectile continues in same direction
                 // Find next target in line
-                // Simplified: don't die, continue
-                IsDead = false;
-                return;
+                Vector2 direction = (Target.Position - Source.Position).normalized;
+                Entity nextTarget = FindPierceTarget(sim, direction);
+                
+                if (nextTarget != null)
+                {
+                    Target = nextTarget;
+                    IsDead = false; // Continue
+                    return;
+                }
             }
 
             // Handle chain (Electro Wizard, Electro Dragon, Electro Spirit)
@@ -167,11 +188,39 @@ namespace CRClone.Battle.Simulation
             IsDead = true;
         }
 
+        private Entity FindPierceTarget(BattleSimulation sim, Vector2 direction)
+        {
+            Entity bestTarget = null;
+            float bestDist = float.MaxValue;
+
+            foreach (var entity in sim.GetPotentialTargets(this))
+            {
+                if (_hitEntities.Contains(entity.Id)) continue;
+                if (entity.IsDead) continue;
+
+                // Check if entity is in the projectile's path (within 0.5 tiles of line)
+                Vector2 toEntity = entity.Position - Source.Position;
+                float projDist = Vector2.Dot(toEntity, direction);
+                if (projDist <= 0) continue; // Behind source
+
+                Vector2 closestPoint = Source.Position + direction * projDist;
+                float perpDist = Vector2.Distance(entity.Position, closestPoint);
+                
+                if (perpDist <= 0.5f && projDist < bestDist)
+                {
+                    bestDist = projDist;
+                    bestTarget = entity;
+                }
+            }
+
+            return bestTarget;
+        }
+
         private void ChainToNearby(BattleSimulation sim)
         {
             int chainsLeft = ChainCount;
             Entity currentTarget = Target;
-            var hitEntities = new System.Collections.Generic.HashSet<uint> { Target.Id };
+            var hitEntities = new HashSet<uint>(_hitEntities);
 
             while (chainsLeft > 0)
             {

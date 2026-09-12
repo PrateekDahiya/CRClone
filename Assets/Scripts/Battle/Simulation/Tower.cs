@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using CRClone.Core;
 
@@ -13,6 +14,8 @@ namespace CRClone.Battle.Simulation
         public float HitSpeed { get; private set; }
         public float Range { get; private set; }
         public Entity Target { get; private set; }
+        private Vector2 _lastTargetPosition;
+        private float _retargetTimer = 0f;
 
         public Tower(uint id, int ownerPlayerId, EntityType type, TowerType towerType, Vector2 position, int hp, int damage, float hitSpeed, float range)
             : base(id, ownerPlayerId, type, position, hp)
@@ -38,7 +41,7 @@ namespace CRClone.Battle.Simulation
             }
 
             // Find target
-            if (Target == null || Target.IsDead || !IsInRange(Target))
+            if (Target == null || Target.IsDead || !IsInRange(Target) || !HasLineOfSight(Target))
             {
                 Target = FindTarget(sim);
             }
@@ -46,6 +49,7 @@ namespace CRClone.Battle.Simulation
             // Attack
             if (Target != null)
             {
+                _lastTargetPosition = Target.Position;
                 AttackCooldown -= dt;
                 if (AttackCooldown <= 0)
                 {
@@ -60,12 +64,25 @@ namespace CRClone.Battle.Simulation
             // King Tower activates when:
             // 1. Takes any damage
             // 2. Princess Tower destroyed
-            // 3. Tornado pulls unit to King Tower
-            // 4. Fisherman hooks unit to King Tower
+            // 3. Tornado pulls unit to King Tower (handled externally via ActivateKingTower)
+            // 4. Fisherman hooks unit to King Tower (handled externally)
 
             if (CurrentHP < MaxHP)
             {
                 ActivateKingTower(KingTowerActivationCause.Damaged);
+                return;
+            }
+
+            // Check if either princess tower is destroyed
+            foreach (var tower in sim._towers)
+            {
+                if (tower.OwnerPlayerId == OwnerPlayerId && 
+                    (tower.Type == TowerType.PrincessLeft || tower.Type == TowerType.PrincessRight) && 
+                    tower.IsDead)
+                {
+                    ActivateKingTower(KingTowerActivationCause.PrincessTowerDestroyed);
+                    return;
+                }
             }
         }
 
@@ -101,16 +118,23 @@ namespace CRClone.Battle.Simulation
         {
             var candidates = sim.GetPotentialTargets(this);
             Entity bestTarget = null;
-            float bestDist = float.MaxValue;
+            int bestPathDist = int.MaxValue;
+            int bestPriority = int.MaxValue;
 
             foreach (var candidate in candidates)
             {
                 if (!IsValidTarget(candidate)) continue;
 
-                float dist = Vector2.Distance(Position, candidate.Position);
-                if (dist < bestDist)
+                // Calculate path distance for more accurate targeting
+                int pathDist = sim._pathfinding.GetPathDistance(Position, candidate.Position, false);
+                
+                // Target priority: troops > buildings > towers
+                int priority = GetTargetPriority(candidate);
+
+                if (pathDist < bestPathDist || (pathDist == bestPathDist && priority < bestPriority))
                 {
-                    bestDist = dist;
+                    bestPathDist = pathDist;
+                    bestPriority = priority;
                     bestTarget = candidate;
                 }
             }
@@ -118,10 +142,31 @@ namespace CRClone.Battle.Simulation
             return bestTarget;
         }
 
+        private int GetTargetPriority(Entity target)
+        {
+            // Priority: troops > buildings > towers
+            if (target.Type == EntityType.Unit) return 0;
+            if (target.Type == EntityType.Building) return 1;
+            if (target.Type == EntityType.Tower) return 2;
+            return 100;
+        }
+
         private bool IsValidTarget(Entity target)
         {
             // Towers target both air and ground
-            // Priority: troops > buildings > towers
+            // Don't target invisible units
+            if (target.IsInvisible) return false;
+            
+            // Don't target invulnerable units (Tesla retracted, etc.)
+            if (target.IsInvulnerable) return false;
+
+            return true;
+        }
+
+        private bool HasLineOfSight(Entity target)
+        {
+            // Simplified: towers have LOS to everything in range
+            // In a full implementation, this would check for obstacles
             return true;
         }
 

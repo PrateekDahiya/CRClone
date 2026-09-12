@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using CRClone.Core;
 using CRClone.Data;
@@ -20,6 +21,16 @@ namespace CRClone.Battle.Simulation
         public bool IsInvulnerableWhileRetracted { get; private set; }
         public int SpawnWave { get; private set; } // For spawners
         public float SpawnTimer { get; private set; }
+        public bool CanTargetAir { get; private set; }
+        public bool CanTargetGround { get; private set; } = true;
+
+        // Inferno Tower ramping
+        private int _infernoRampStage = 0;
+        private float _infernoTimeAtStage = 0f;
+        private uint _infernoTargetId = 0;
+
+        // Cannon Cart transformation
+        private bool _cannonCartTransformed = false;
 
         public Building(uint id, int ownerPlayerId, CardData cardData, CardLevelStats stats, Vector2 position, int level)
             : base(id, ownerPlayerId, EntityType.Building, position, stats.hitpoints)
@@ -33,9 +44,31 @@ namespace CRClone.Battle.Simulation
             AttackCooldown = stats.hitSpeed;
             CollisionRadius = GetCollisionRadius(cardData);
 
+            // Determine targeting capabilities
+            DetermineTargeting(cardData);
+
             // Special building properties
             IsRetracted = cardData.cardName == "Tesla";
             IsInvulnerableWhileRetracted = IsRetracted;
+        }
+
+        private void DetermineTargeting(CardData cardData)
+        {
+            string name = cardData.cardName;
+            
+            // Most buildings target both air and ground
+            CanTargetAir = true;
+            CanTargetGround = true;
+
+            // Exceptions
+            if (name == "Cannon" || name == "Bomb Tower" || name == "Mortar" || name == "X-Bow")
+            {
+                CanTargetAir = false;
+            }
+            if (name == "Cannon Cart" && !_cannonCartTransformed)
+            {
+                CanTargetAir = false; // Mobile form: ground only
+            }
         }
 
         private float GetLifetime(CardData card)
@@ -79,6 +112,12 @@ namespace CRClone.Battle.Simulation
 
             if (IsDead) return;
 
+            // Handle invulnerability while retracted
+            if (IsRetracted && IsInvulnerableWhileRetracted)
+            {
+                // Tesla cannot be targeted while retracted
+            }
+
             // Update lifetime
             Lifetime -= dt;
             if (IsExpired)
@@ -105,6 +144,12 @@ namespace CRClone.Battle.Simulation
                 UpdateElixirCollector(dt, sim);
             }
 
+            // Handle Goblin Drill burrowing
+            if (CardData.cardName == "Goblin Drill")
+            {
+                UpdateGoblinDrill(dt, sim);
+            }
+
             // Handle Cannon Cart transformation
             if (CardData.cardName == "Cannon Cart")
             {
@@ -112,7 +157,7 @@ namespace CRClone.Battle.Simulation
             }
 
             // Normal attack logic
-            if (!IsRetracted && !IsSpawner() && CardData.cardName != "Elixir Collector")
+            if (!IsRetracted && !IsSpawner() && CardData.cardName != "Elixir Collector" && CardData.cardName != "Goblin Drill")
             {
                 UpdateAttack(dt, sim);
             }
@@ -142,8 +187,7 @@ namespace CRClone.Battle.Simulation
             return CardData.cardName == "Goblin Hut" || 
                    CardData.cardName == "Furnace" || 
                    CardData.cardName == "Tombstone" ||
-                   CardData.cardName == "Goblin Cage" ||
-                   CardData.cardName == "Goblin Drill";
+                   CardData.cardName == "Goblin Cage";
         }
 
         private void UpdateSpawner(float dt, BattleSimulation sim)
@@ -177,15 +221,26 @@ namespace CRClone.Battle.Simulation
                     SpawnWave++;
                 }
             }
-            else if (CardData.cardName == "Goblin Drill")
+            else if (CardData.cardName == "Goblin Cage")
             {
-                // Burrowing logic - spawn at target location after delay
-                if (SpawnTimer <= 0 && SpawnWave < 3)
-                {
-                    SpawnGoblinsFromDrill(sim);
-                    SpawnTimer = 10f;
-                    SpawnWave++;
-                }
+                // Goblin Cage doesn't spawn periodically; spawns on death
+                SpawnTimer = float.MaxValue;
+            }
+        }
+
+        private void UpdateGoblinDrill(float dt, BattleSimulation sim)
+        {
+            // Goblin Drill: Burrows underground, invulnerable, then pops up at target location
+            // Simplified: spawn 3 waves of 2 goblins every 10s
+            if (SpawnTimer <= 0 && SpawnWave < 3)
+            {
+                SpawnGoblinsFromDrill(sim);
+                SpawnTimer = 10f;
+                SpawnWave++;
+            }
+            else
+            {
+                SpawnTimer -= dt;
             }
         }
 
@@ -262,12 +317,14 @@ namespace CRClone.Battle.Simulation
         private void UpdateCannonCart(BattleSimulation sim)
         {
             // Cannon Cart has two forms: mobile (ground only) and stationary (air & ground)
-            // When "wheels" HP depleted, transforms
-            // Simplified: starts mobile, becomes stationary at 50% HP
-            if (CurrentHP <= MaxHP / 2 && AttackRange < 5.5f)
+            // When "wheels" HP depleted (at 50% HP), transforms
+            if (!_cannonCartTransformed && CurrentHP <= MaxHP / 2)
             {
+                _cannonCartTransformed = true;
                 AttackRange = 5.5f; // Stationary range
-                // Can now target air
+                CanTargetAir = true; // Can now target air
+                CanTargetGround = true;
+                // Visual change handled by presentation
             }
         }
 
@@ -313,15 +370,49 @@ namespace CRClone.Battle.Simulation
 
         private bool IsValidTarget(Entity target)
         {
-            // Tesla, Cannon, Bomb Tower: ground only
-            if (CardData.cardName == "Tesla") return true; // Air & ground
-            if (CardData.cardName == "Cannon" || CardData.cardName == "Bomb Tower") 
+            string name = CardData.cardName;
+
+            // Tesla: air & ground
+            if (name == "Tesla") return true;
+            
+            // Cannon, Bomb Tower: ground only
+            if (name == "Cannon" || name == "Bomb Tower")
             {
-                // Ground only - would need IsFlying property on target
-                return true; // Simplified
+                if (target.Type == EntityType.Unit)
+                {
+                    var unit = target as Unit;
+                    if (unit != null && unit.IsFlying) return false;
+                }
+                return true;
             }
-            if (CardData.cardName == "Inferno Tower") return true; // Air & ground
-            if (CardData.cardName == "Mortar" || CardData.cardName == "X-Bow") return true; // Ground only
+
+            // Inferno Tower: air & ground
+            if (name == "Inferno Tower") return true;
+
+            // Mortar, X-Bow: ground only
+            if (name == "Mortar" || name == "X-Bow")
+            {
+                if (target.Type == EntityType.Unit)
+                {
+                    var unit = target as Unit;
+                    if (unit != null && unit.IsFlying) return false;
+                }
+                return true;
+            }
+
+            // Cannon Cart: ground only when mobile, air & ground when stationary
+            if (name == "Cannon Cart")
+            {
+                if (!_cannonCartTransformed)
+                {
+                    if (target.Type == EntityType.Unit)
+                    {
+                        var unit = target as Unit;
+                        if (unit != null && unit.IsFlying) return false;
+                    }
+                }
+                return true;
+            }
 
             return true;
         }
@@ -335,16 +426,18 @@ namespace CRClone.Battle.Simulation
         {
             if (Target == null) return;
 
+            string name = CardData.cardName;
+
             // Mortar and X-Bow have special attack patterns
-            if (CardData.cardName == "Mortar")
+            if (name == "Mortar")
             {
                 FireMortarShot(sim);
             }
-            else if (CardData.cardName == "X-Bow")
+            else if (name == "X-Bow")
             {
                 FireXBowShot(sim);
             }
-            else if (CardData.cardName == "Inferno Tower")
+            else if (name == "Inferno Tower")
             {
                 FireInfernoBeam(sim);
             }
@@ -368,6 +461,9 @@ namespace CRClone.Battle.Simulation
         {
             // Mortar: dead zone 0-4 tiles, range 4-11.5
             // High arc, splash damage
+            float dist = Vector2.Distance(Position, Target.Position);
+            if (dist < 4f) return; // Dead zone
+
             var projectile = new Projectile(
                 sim._nextEntityId++,
                 OwnerPlayerId,
@@ -401,7 +497,6 @@ namespace CRClone.Battle.Simulation
         {
             // Inferno Tower: ramping damage beam
             // Damage doubles every 0.4s up to 1600
-            // This is handled in the beam logic, not projectile
             var beam = new InfernoBeam(
                 sim._nextEntityId++,
                 OwnerPlayerId,
@@ -416,8 +511,20 @@ namespace CRClone.Battle.Simulation
         private int GetInfernoDamage()
         {
             // Ramping: 50, 100, 200, 400, 800, 1600
-            // Based on time attacking same target
-            return Stats.damage; // Base, ramping handled in beam
+            int[] damages = { 50, 100, 200, 400, 800, 1600 };
+            return _infernoRampStage < damages.Length ? damages[_infernoRampStage] : damages[damages.Length - 1];
+        }
+
+        public override void TakeDamage(int amount, DamageType damageType, uint sourceId)
+        {
+            if (IsDead) return;
+            if (IsRetracted && IsInvulnerableWhileRetracted) return; // Tesla retracted
+            if (IsInvulnerable) return;
+
+            base.TakeDamage(amount, damageType, sourceId);
+
+            // Inferno Tower ramp reset on damage taken (if stunned)
+            // Actually handled by stun status effect
         }
 
         public override void OnDeath(BattleSimulation sim)
@@ -425,7 +532,9 @@ namespace CRClone.Battle.Simulation
             base.OnDeath(sim);
 
             // Death effects
-            if (CardData.cardName == "Bomb Tower")
+            string name = CardData.cardName;
+            
+            if (name == "Bomb Tower")
             {
                 // Death damage in radius
                 foreach (var entity in sim.GetPotentialTargets(this))
@@ -436,7 +545,7 @@ namespace CRClone.Battle.Simulation
                     }
                 }
             }
-            else if (CardData.cardName == "Tombstone")
+            else if (name == "Tombstone")
             {
                 // Spawn 4 skeletons on death
                 var cardData = Services.Get<DataManager>().GetCardByName("Skeleton");
@@ -452,7 +561,7 @@ namespace CRClone.Battle.Simulation
                     }
                 }
             }
-            else if (CardData.cardName == "Goblin Cage")
+            else if (name == "Goblin Cage")
             {
                 // Spawn Goblin Brawler
                 var cardData = Services.Get<DataManager>().GetCardByName("Goblin Brawler");
@@ -464,15 +573,22 @@ namespace CRClone.Battle.Simulation
                     sim._entities[unit.Id] = unit;
                 }
             }
-
-            sim.LogEvent(new BattleEvent
+            else if (name == "Goblin Drill")
             {
-                tick = sim.CurrentTick,
-                type = EventType.BuildingDestroyed,
-                playerId = OwnerPlayerId,
-                cardId = CardData.cardId,
-                position = Position
-            });
+                // Final goblin spawn on death
+                var cardData = Services.Get<DataManager>().GetCardByName("Goblin");
+                if (cardData != null)
+                {
+                    var stats = cardData.GetStats(Level);
+                    for (int i = 0; i < 2; i++)
+                    {
+                        var offset = new Vector2(UnityEngine.Random.Range(-0.5f, 0.5f), UnityEngine.Random.Range(-0.5f, 0.5f));
+                        var unit = new Unit(sim._nextEntityId++, OwnerPlayerId, cardData, stats, Position + offset, Level);
+                        sim._units.Add(unit);
+                        sim._entities[unit.Id] = unit;
+                    }
+                }
+            }
         }
     }
 
