@@ -17,8 +17,6 @@ export const config = {
     database: process.env.DB_NAME!,
     ssl: process.env.DB_SSL === 'true',
     connectionLimit: 10,
-    acquireTimeout: 60000,
-    timeout: 60000,
   },
 
   // Redis
