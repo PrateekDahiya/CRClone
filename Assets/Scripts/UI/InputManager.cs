@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.EventSystems;
+using CRClone.Core;
 
 namespace CRClone.UI
 {
@@ -510,7 +511,7 @@ namespace CRClone.UI
 
         public event Action<Vector2> OnTap;
         public event Action<Vector2> OnDragStart;
-        public event Action<Vector2> OnDrag;
+        public event Action<Vector2> OnDragged;
         public event Action<Vector2> OnDragEnd;
 
         private void Awake()
@@ -562,7 +563,7 @@ namespace CRClone.UI
 
             if (_isDragging)
             {
-                OnDrag?.Invoke(eventData.position);
+                OnDragged?.Invoke(eventData.position);
             }
         }
     }
