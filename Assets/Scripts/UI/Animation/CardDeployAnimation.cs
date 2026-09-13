@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Data;
 using CRClone.Battle.UI;
