@@ -33,7 +33,7 @@ namespace CRClone.UI.Components
             _onAction = onAction;
 
             var playerData = Services.Get<GameManager>().LocalPlayer;
-            bool isSelf = playerData != null && member.playerId == playerData.playerId;
+            bool isSelf = playerData != null && member.playerId == playerData.playerId.ToString();
             bool canManage = playerData != null && 
                             (playerData.clanRole == ClanRole.Leader || 
                              playerData.clanRole == ClanRole.CoLeader);

@@ -191,13 +191,13 @@ namespace CRClone.UI.Components
 
             UISoundPlayer.Instance?.PlayChestUnlock();
 
-            var chestUnlockScreen = UIManager.Instance?.ShowScreen(ScreenType.ChestUnlock);
+            UIManager.Instance?.ShowScreen(ScreenType.ChestUnlock);
             // ChestUnlockScreen would handle the animation and rewards
         }
 
         private void ShowSpeedUpOption()
         {
-            var modal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/SpeedUpChestModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/SpeedUpChestModal"));
         }
 
         private string FormatTime(TimeSpan time)
