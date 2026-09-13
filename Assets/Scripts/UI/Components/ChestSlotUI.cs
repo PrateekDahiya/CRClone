@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using CRClone.Core;
 using CRClone.UI.Animation;
 
 namespace CRClone.UI.Components

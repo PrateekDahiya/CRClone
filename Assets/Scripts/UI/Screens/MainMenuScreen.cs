@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Network;
 using CRClone.UI.Animation;
+using CRClone.UI.Components;
 
 namespace CRClone.UI.Screens
 {
