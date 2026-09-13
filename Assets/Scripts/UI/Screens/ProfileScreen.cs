@@ -2,6 +2,9 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
+using CRClone.Network;
+using CRClone.UI.Components;
 
 namespace CRClone.UI.Screens
 {
@@ -77,7 +80,7 @@ namespace CRClone.UI.Screens
             {
                 foreach (var kvp in playerData.collection)
                 {
-                    if (kvp.Value > 0) cardsOwned++;
+                    if (kvp.Value.count > 0) cardsOwned++;
                 }
             }
             _cardsCollectedText.text = $"{cardsOwned}/100";
@@ -131,8 +134,8 @@ namespace CRClone.UI.Screens
 
         private void OnChangeName()
         {
-            var modal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ChangeNameModal"));
-            var modalUI = modal?.GetComponent<ChangeNameModal>();
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ChangeNameModal"));
+            var modalUI = UIManager.Instance?.GetComponentInChildren<ChangeNameModal>();
             if (modalUI != null)
             {
                 modalUI.Initialize(OnNameChanged);
@@ -194,7 +197,7 @@ namespace CRClone.UI.Screens
         public int playerCrowns;
         public int opponentCrowns;
         public int trophyChange;
-        public BattleType battleType;
+        public CRClone.Core.BattleType battleType;
         public long replayId;
     }
 }

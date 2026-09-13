@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
+using CRClone.Network;
+using CRClone.Systems;
 using CRClone.UI.Animation;
 
 namespace CRClone.UI.Screens
