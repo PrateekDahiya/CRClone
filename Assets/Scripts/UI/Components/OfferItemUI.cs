@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.UI.Animation;
+using CRClone.UI.Screens;
 
 namespace CRClone.UI.Components
 {
@@ -20,11 +21,11 @@ namespace CRClone.UI.Components
         [SerializeField] private Text _timerText;
         [SerializeField] private Image _rarityFrame;
 
-        private ShopScreen.ShopOffer _offer;
-        private Action<ShopScreen.ShopOffer> _onPurchaseClicked;
+        private ShopOffer _offer;
+        private Action<ShopOffer> _onPurchaseClicked;
         private Coroutine _timerCoroutine;
 
-        public void Initialize(ShopScreen.ShopOffer offer, Action<ShopScreen.ShopOffer> onPurchaseClicked)
+        public void Initialize(ShopOffer offer, Action<ShopOffer> onPurchaseClicked)
         {
             _offer = offer;
             _onPurchaseClicked = onPurchaseClicked;

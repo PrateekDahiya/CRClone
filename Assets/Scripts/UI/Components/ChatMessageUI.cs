@@ -27,10 +27,10 @@ namespace CRClone.UI.Components
         [SerializeField] private Sprite _systemMessageBg;
         [SerializeField] private Sprite _donationMessageBg;
 
-        private ClanScreen.ChatMessage _message;
+        private ChatMessage _message;
         private Action<int, string> _onDonateClicked;
 
-        public void Initialize(ClanScreen.ChatMessage message, Action<int, string> onDonateClicked)
+        public void Initialize(ChatMessage message, Action<int, string> onDonateClicked)
         {
             _message = message;
             _onDonateClicked = onDonateClicked;
@@ -50,10 +50,10 @@ namespace CRClone.UI.Components
             {
                 switch (_message.type)
                 {
-                    case ClanScreen.ChatMessage.MessageType.System:
+                    case ChatMessage.MessageType.System:
                         _backgroundImage.sprite = _systemMessageBg;
                         break;
-                    case ClanScreen.ChatMessage.MessageType.DonationRequest:
+                    case ChatMessage.MessageType.DonationRequest:
                         _backgroundImage.sprite = _donationMessageBg;
                         break;
                     default:
@@ -64,7 +64,7 @@ namespace CRClone.UI.Components
 
             switch (_message.type)
             {
-                case ClanScreen.ChatMessage.MessageType.DonationRequest:
+                case ChatMessage.MessageType.DonationRequest:
                     _messageText?.gameObject.SetActive(false);
                     _donationRequestContainer?.SetActive(true);
                     _replayLinkContainer?.SetActive(false);
@@ -93,7 +93,7 @@ namespace CRClone.UI.Components
                     }
                     break;
 
-                case ClanScreen.ChatMessage.MessageType.ReplayShare:
+                case ChatMessage.MessageType.ReplayShare:
                     _messageText?.gameObject.SetActive(false);
                     _donationRequestContainer?.SetActive(false);
                     _replayLinkContainer?.SetActive(true);
