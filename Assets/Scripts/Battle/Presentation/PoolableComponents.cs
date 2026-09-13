@@ -1,6 +1,7 @@
 using UnityEngine;
 using CRClone.Systems;
 using CRClone.Core;
+using CRClone.Battle.Simulation;
 
 namespace CRClone.Battle.Presentation
 {

@@ -3,6 +3,9 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using CRClone.Core;
 using CRClone.Network;
+using CRClone.Battle.Simulation;
+using CRClone.Data;
+using CRClone.Battle.UI;
 
 namespace CRClone.Battle.Input
 {
@@ -198,10 +201,10 @@ namespace CRClone.Battle.Input
             _handBar?.OnCardDeployed(_selectedCardIndex);
         }
 
-        private NetworkClient.InputType GetInputTypeForCard(int cardId)
+        private InputType GetInputTypeForCard(int cardId)
         {
             var cardData = Services.Get<DataManager>().GetCard(cardId);
-            return cardData.type == CardType.Spell ? NetworkClient.InputType.CastSpell : NetworkClient.InputType.PlayCard;
+            return cardData.type == CardType.Spell ? InputType.CastSpell : InputType.PlayCard;
         }
 
         private bool IsValidPlacement(Vector3 worldPos)
