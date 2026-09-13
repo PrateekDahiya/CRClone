@@ -1,6 +1,12 @@
 {
   "name": "CRClone.Core",
   "rootNamespace": "CRClone",
+  "references": [
+    "Unity.TextMeshPro",
+    "Unity.InputSystem",
+    "Unity.Addressables",
+    "Unity.ResourceManager"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
