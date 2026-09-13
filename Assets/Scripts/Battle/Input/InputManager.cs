@@ -254,6 +254,11 @@ namespace CRClone.Battle.Input
             }
         }
 
+        private void UpdateDragVisuals()
+        {
+            // TODO: Implement per-frame drag visual updates (placement validity, indicators).
+        }
+
         private void ShowSpellRadius(CardData cardData)
         {
             if (cardData.type != CardType.Spell) return;

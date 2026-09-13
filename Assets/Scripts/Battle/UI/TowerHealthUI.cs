@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Battle.Simulation;
+using CRClone.UI;
 using CRClone.UI.Animation;
 
 namespace CRClone.Battle.UI
@@ -168,7 +169,7 @@ namespace CRClone.Battle.UI
             transform.localPosition = originalPos;
         }
 
-        private void PlayDestroyAnimation()
+        public void PlayDestroyAnimation()
         {
             _isDestroyed = true;
             if (_destroyCoroutine != null) StopCoroutine(_destroyCoroutine);

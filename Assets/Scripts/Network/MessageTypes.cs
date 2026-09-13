@@ -104,6 +104,7 @@ namespace CRClone.Network
         [ProtoMember(32)] public PlayerBattleInfo player1 { get; set; }
         [ProtoMember(33)] public PlayerBattleInfo player2 { get; set; }
         [ProtoMember(34)] public bool is2v2 { get; set; }
+        [ProtoMember(35)] public CRClone.Core.BattleType battleType { get; set; }
     }
 
     [ProtoContract]
