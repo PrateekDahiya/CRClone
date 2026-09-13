@@ -108,7 +108,7 @@ namespace CRClone.Network
             _lastKnownServerTick = evt.serverTick;
         }
 
-        private void ScheduleReconnect()
+        public void ScheduleReconnect()
         {
             if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
             {
