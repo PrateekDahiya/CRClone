@@ -46,7 +46,7 @@ namespace CRClone.Battle.Simulation
         {
             SpellData = cardData;
             CenterPosition = position;
-            Level = level;
+            Level = stats.level;
             Duration = GetSpellDuration(cardData);
             RemainingTime = Duration;
             Type = GetSpellType(cardData);
@@ -431,7 +431,7 @@ private void ParseSpellStats(CardData card, CardLevelStats stats)
                     {
                         if (Vector2.Distance(target.Position, tower.Position) < 1.5f)
                         {
-                            tower.ActivateKingTower(KingTowerActivationCause.TornadoPull);
+                            tower.ActivateKingTower(KingTowerActivationCause.TornadoPull, sim);
                         }
                     }
                 }

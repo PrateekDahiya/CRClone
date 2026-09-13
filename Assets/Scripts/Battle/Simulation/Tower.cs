@@ -101,7 +101,7 @@ namespace CRClone.Battle.Simulation
 
             if (CurrentHP < MaxHP)
             {
-                ActivateKingTower(KingTowerActivationCause.Damaged);
+                ActivateKingTower(KingTowerActivationCause.Damaged, sim);
                 return;
             }
 
@@ -112,13 +112,13 @@ namespace CRClone.Battle.Simulation
                     (tower.Type == TowerType.PrincessLeft || tower.Type == TowerType.PrincessRight) && 
                     tower.IsDead)
                 {
-                    ActivateKingTower(KingTowerActivationCause.PrincessTowerDestroyed);
+                    ActivateKingTower(KingTowerActivationCause.PrincessTowerDestroyed, sim);
                     return;
                 }
             }
         }
 
-        public void ActivateKingTower(KingTowerActivationCause cause)
+        public void ActivateKingTower(KingTowerActivationCause cause, BattleSimulation sim)
         {
             if (IsActivated) return;
 

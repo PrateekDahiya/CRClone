@@ -271,7 +271,7 @@ namespace CRClone.Battle.Simulation
                 type = ReplayEventType.CardPlayed,
                 playerId = player.PlayerId,
                 cardId = cardId,
-                position = new FixedMath.FixedVector2(position),
+                position = new FixedMath.FixedVector2(position.x, position.y),
                 elixir = player.Elixir
             });
 
@@ -394,8 +394,8 @@ namespace CRClone.Battle.Simulation
                 type = ReplayEventType.UnitSpawned,
                 playerId = playerId,
                 cardId = card.cardId,
-                entityId = unit.Id,
-                position = new FixedMath.FixedVector2(position),
+                entityId = (int)unit.Id,
+                position = new FixedMath.FixedVector2(position.x, position.y),
                 hpRemaining = unit.CurrentHP
             });
 
@@ -433,8 +433,8 @@ namespace CRClone.Battle.Simulation
                 type = ReplayEventType.BuildingPlaced,
                 playerId = playerId,
                 cardId = card.cardId,
-                entityId = building.Id,
-                position = new FixedMath.FixedVector2(position),
+                entityId = (int)building.Id,
+                position = new FixedMath.FixedVector2(position.x, position.y),
                 hpRemaining = building.CurrentHP
             });
 
@@ -501,7 +501,7 @@ namespace CRClone.Battle.Simulation
                     type = ReplayEventType.CardPlayed,
                     playerId = player.PlayerId,
                     cardId = spellId,
-                    position = new FixedMath.FixedVector2(position),
+                    position = new FixedMath.FixedVector2(position.x, position.y),
                     elixir = player.Elixir
                 });
                 
@@ -529,8 +529,8 @@ namespace CRClone.Battle.Simulation
                     type = ReplayEventType.SpellCast,
                     playerId = player.PlayerId,
                     cardId = spellId,
-                    entityId = spellEffect.Id,
-                    position = new FixedMath.FixedVector2(position)
+                    entityId = (int)spellEffect.Id,
+                    position = new FixedMath.FixedVector2(position.x, position.y)
                 });
 
                 // Emit EventBus event
@@ -572,8 +572,8 @@ namespace CRClone.Battle.Simulation
                             type = ReplayEventType.ChampionAbility,
                             playerId = player.PlayerId,
                             cardId = unit.CardData.cardId,
-                            entityId = unit.Id,
-                            position = new FixedMath.FixedVector2(position),
+                            entityId = (int)unit.Id,
+                            position = new FixedMath.FixedVector2(position.x, position.y),
                             elixir = player.Elixir
                         });
                     }
@@ -766,8 +766,8 @@ namespace CRClone.Battle.Simulation
                         type = ReplayEventType.UnitDied,
                         playerId = unit.OwnerPlayerId,
                         cardId = unit.CardData.cardId,
-                        entityId = unit.Id,
-                        position = new FixedMath.FixedVector2(unit.Position)
+                        entityId = (int)unit.Id,
+                        position = new FixedMath.FixedVector2(unit.Position.x, unit.Position.y)
                     });
 
                     // Emit EventBus event
@@ -799,8 +799,8 @@ namespace CRClone.Battle.Simulation
                         type = ReplayEventType.BuildingDestroyed,
                         playerId = building.OwnerPlayerId,
                         cardId = building.CardData.cardId,
-                        entityId = building.Id,
-                        position = new FixedMath.FixedVector2(building.Position)
+                        entityId = (int)building.Id,
+                        position = new FixedMath.FixedVector2(building.Position.x, building.Position.y)
                     });
 
                     // Emit EventBus event
@@ -838,6 +838,14 @@ namespace CRClone.Battle.Simulation
                     if (tower.Type == TowerType.PrincessRight && tower.IsDead) { p2PrincessRightDead = true; p1Crowns++; }
                 }
             }
+
+            // Pending sudden-death detail: per-princess flags retained for future
+            // tiebreak use; crowns drive current logic. Discards silence CS0219
+            // without behavior change.
+            _ = p1PrincessLeftDead;
+            _ = p1PrincessRightDead;
+            _ = p2PrincessLeftDead;
+            _ = p2PrincessRightDead;
 
             bool isOvertime = _currentTick >= _config.battleDuration * TICK_RATE;
             float battleEndTime = (_config.battleDuration + _config.overtimeDuration) * TICK_RATE;
@@ -1031,6 +1039,7 @@ namespace CRClone.Battle.Simulation
     public class PlayerState
     {
         public int PlayerId { get; }
+        public string PlayerName;
         public int Elixir { get; set; }
         public int[] Deck { get; }
         public int[] Hand { get; private set; }
