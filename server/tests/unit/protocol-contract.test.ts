@@ -15,10 +15,10 @@ import {
 
 const CS_PATH = path.resolve(__dirname, '..', '..', '..', 'Assets', 'Scripts', 'Network', 'MessageTypes.cs');
 const PROTO_PATH = path.resolve(__dirname, '..', '..', 'src', 'network', 'protocol.proto');
-// C# Network EntityType: the wire numbering the server must serialize against.
-// (Core EntityType parity is Agent 1 / ISSUE-103 scope; this case pins the
-// TS internal enum to the Network side only.)
-const NET_ENTITY_CS_PATH = CS_PATH;
+// Canonical C# EntityType lives in Core (ISSUE-103 unified the enums; the old
+// Network duplicate was deleted by PR #10). TS EntityTypeInternal must match
+// Core numbering exactly (None=0, Unit=1 .. Tower=5).
+const CORE_ENTITY_CS_PATH = path.resolve(__dirname, '..', '..', '..', 'Assets', 'Scripts', 'Core', 'GameTypes.cs');
 
 function extractCsEnumValues(cs: string, enumName: string): Map<string, number> {
   const blockRe = new RegExp(`public enum ${enumName}\\s*\\{([\\s\\S]*?)\\}`, 'm');
@@ -220,20 +220,22 @@ describe('protocol wire contract (Agent2 deliverable 2.3)', () => {
     expect(cs).toContain('[ProtoMember(90)] public uint[] cardIds');
   });
 
-  test('EntityType numeric parity: TS EntityTypeInternal matches C# Network EntityType (ISSUE-103 wire side)', () => {
-    const netCs = readFile(NET_ENTITY_CS_PATH);
-    const net = extractCsEnumValues(netCs, 'EntityType');
+  test('EntityType numeric parity: TS EntityTypeInternal matches canonical C# Core EntityType (ISSUE-103 wire side)', () => {
+    const coreCs = readFile(CORE_ENTITY_CS_PATH);
+    const core = extractCsEnumValues(coreCs, 'EntityType');
     const expected: Array<[string, number]> = [
-      ['Unit', 0],
-      ['Building', 1],
-      ['Projectile', 2],
-      ['SpellEffect', 3],
-      ['Tower', 4],
+      ['None', 0],
+      ['Unit', 1],
+      ['Building', 2],
+      ['Projectile', 3],
+      ['SpellEffect', 4],
+      ['Tower', 5],
     ];
-    // Wire definition itself is pinned: any C# renumber fails here first.
-    expect([...net.entries()]).toEqual(expected);
+    // Canonical definition is pinned: any C# renumber fails here first.
+    expect([...core.entries()]).toEqual(expected);
 
     const ts: Array<[string, number]> = [
+      ['None', EntityTypeInternal.None],
       ['Unit', EntityTypeInternal.Unit],
       ['Building', EntityTypeInternal.Building],
       ['Projectile', EntityTypeInternal.Projectile],
