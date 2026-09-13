@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { EntityTypeInternal } from '../../src/battle/BattleSimulation';
 import {
   loadProtocol,
   getProtocolRoot,
@@ -14,6 +15,23 @@ import {
 
 const CS_PATH = path.resolve(__dirname, '..', '..', '..', 'Assets', 'Scripts', 'Network', 'MessageTypes.cs');
 const PROTO_PATH = path.resolve(__dirname, '..', '..', 'src', 'network', 'protocol.proto');
+// C# Network EntityType: the wire numbering the server must serialize against.
+// (Core EntityType parity is Agent 1 / ISSUE-103 scope; this case pins the
+// TS internal enum to the Network side only.)
+const NET_ENTITY_CS_PATH = CS_PATH;
+
+function extractCsEnumValues(cs: string, enumName: string): Map<string, number> {
+  const blockRe = new RegExp(`public enum ${enumName}\\s*\\{([\\s\\S]*?)\\}`, 'm');
+  const m = blockRe.exec(cs);
+  const out = new Map<string, number>();
+  if (!m) return out;
+  const entryRe = /(\w+)\s*=\s*(\d+)/g;
+  let e: RegExpExecArray | null;
+  while ((e = entryRe.exec(m[1])) !== null) {
+    out.set(e[1], Number(e[2]));
+  }
+  return out;
+}
 
 function readFile(p: string): string {
   return fs.readFileSync(p, 'utf-8');
@@ -200,6 +218,29 @@ describe('protocol wire contract (Agent2 deliverable 2.3)', () => {
     expect(cs).toContain('[ProtoMember(800)] public string action');
     expect(cs).toContain('[ProtoMember(100)] public string battleId');
     expect(cs).toContain('[ProtoMember(90)] public uint[] cardIds');
+  });
+
+  test('EntityType numeric parity: TS EntityTypeInternal matches C# Network EntityType (ISSUE-103 wire side)', () => {
+    const netCs = readFile(NET_ENTITY_CS_PATH);
+    const net = extractCsEnumValues(netCs, 'EntityType');
+    const expected: Array<[string, number]> = [
+      ['Unit', 0],
+      ['Building', 1],
+      ['Projectile', 2],
+      ['SpellEffect', 3],
+      ['Tower', 4],
+    ];
+    // Wire definition itself is pinned: any C# renumber fails here first.
+    expect([...net.entries()]).toEqual(expected);
+
+    const ts: Array<[string, number]> = [
+      ['Unit', EntityTypeInternal.Unit],
+      ['Building', EntityTypeInternal.Building],
+      ['Projectile', EntityTypeInternal.Projectile],
+      ['SpellEffect', EntityTypeInternal.SpellEffect],
+      ['Tower', EntityTypeInternal.Tower],
+    ];
+    expect(ts).toEqual(expected);
   });
 
   describe('protobuf round-trip', () => {
