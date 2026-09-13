@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using CRClone.Core;
+using CRClone.Data;
 using CRClone.UI.Animation;
 using CRClone.UI.Screens;
 
