@@ -104,7 +104,7 @@ namespace CRClone.UI.Screens
             return (long)(level * level * 1000);
         }
 
-        private void RefreshBattleLog(GameManager.PlayerData playerData)
+        private void RefreshBattleLog(PlayerData playerData)
         {
             if (_battleLogContainer == null || _battleLogItemPrefab == null) return;
 
