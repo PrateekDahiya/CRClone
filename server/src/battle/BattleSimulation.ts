@@ -2,6 +2,10 @@ import { logger } from '../utils/logger';
 import { config } from '../config';
 import { DeterministicRNG } from '../utils/rng';
 import { BattleStatus, EntityType, TowerType, Vector2, CardType, CardRarity, PlayerState, EntityState } from '../types';
+import { getCardDefinition, getCardStats, getFootprintRadius, isFlyingCard, CHAMPION_ABILITY_COST, CardCombatStats } from './CardDatabase';
+
+// Simplified champion-ability burst radius in tiles (no per-champion tuning on the server yet).
+const CHAMPION_ABILITY_RADIUS = 3.5;
 
 // Fixed-point math for determinism
 export class Fixed {
@@ -194,8 +198,8 @@ export const GameConstants = {
   P2_KING_POS: { x: 9, y: 30 },
   P2_PRINCESS_LEFT_POS: { x: 2, y: 26 },
   P2_PRINCESS_RIGHT_POS: { x: 16, y: 26 },
-  DEPLOY_ZONE_Y_P1_MAX: 16,
-  DEPLOY_ZONE_Y_P2_MIN: 16,
+  DEPLOY_ZONE_Y_P1_MAX: 13,
+  DEPLOY_ZONE_Y_P2_MIN: 19,
   RIVER_Y_MIN: 14,
   RIVER_Y_MAX: 18,
   ARENA_WIDTH: 18,
@@ -208,6 +212,130 @@ export enum EntityTypeInternal {
   Projectile = 2,
   SpellEffect = 3,
   Tower = 4,
+}
+
+// Minimal deploy-state view so the canonical C# IsValidDeployPosition rules
+// (BattleSimulation.cs:299-369) can be shared verbatim between the sim-side
+// spawn guard and BattleServer.validateInput without coupling to internals.
+export interface DeploySnapshotTower {
+  owner: number;
+  isPrincess: boolean;
+  isDead: boolean;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+export interface DeploySnapshotEntity {
+  x: number;
+  y: number;
+  radius: number;
+  isDead: boolean;
+}
+
+export interface DeploySnapshot {
+  towers: DeploySnapshotTower[];
+  buildings: DeploySnapshotEntity[];
+  units: DeploySnapshotEntity[];
+}
+
+export interface DeployCardInfo {
+  type: CardType;
+  name: string;
+  isFlying: boolean;
+  footprintRadius: number;
+}
+
+export function buildDeploySnapshot(sim: BattleSimulation): DeploySnapshot {
+  return {
+    towers: sim.Towers.map((t) => ({
+      owner: t.OwnerPlayerId,
+      isPrincess: t.TowerType !== TowerType.King,
+      isDead: t.IsDead,
+      x: t.Position.x.toFloat(),
+      y: t.Position.y.toFloat(),
+      radius: t.CollisionRadius,
+    })),
+    buildings: sim.Buildings.map((b) => ({
+      x: b.Position.x.toFloat(),
+      y: b.Position.y.toFloat(),
+      radius: b.CollisionRadius,
+      isDead: b.IsDead,
+    })),
+    units: sim.Units.map((u) => ({
+      x: u.Position.x.toFloat(),
+      y: u.Position.y.toFloat(),
+      radius: u.CollisionRadius,
+      isDead: u.IsDead,
+    })),
+  };
+}
+
+// Server mirror of C# IsValidDeployPosition (BattleSimulation.cs:299-369).
+// Two deliberate deviations are documented here:
+//  - Spells are playable anywhere (BattleTestBase contract: "Spells:
+//    anywhere"). The C# code as written zone-gates spells, which would make
+//    damage spells unable to hit enemy towers; server keeps the documented
+//    behavior. Flagged as cross-stack follow-up.
+//  - The princess-death expansion signs (-4/+4 shrinking the owner's own
+//    zone) are mirrored exactly as written for parity, though they read
+//    inverted vs CR pocket rules. Flagged as upstream C# follow-up.
+export function isValidDeployPosition(
+  playerId: number,
+  position: Vector2,
+  card: DeployCardInfo,
+  snap: DeploySnapshot,
+): boolean {
+  // Deploy-zone expansion when an OWN princess tower is destroyed.
+  let expandedDeploy = false;
+  for (const tower of snap.towers) {
+    if (tower.owner === playerId && tower.isPrincess && tower.isDead) {
+      expandedDeploy = true;
+      break;
+    }
+  }
+
+  const deployZoneMaxY = playerId === 1
+    ? (expandedDeploy ? GameConstants.DEPLOY_ZONE_Y_P1_MAX - 4 : GameConstants.DEPLOY_ZONE_Y_P1_MAX)
+    : (expandedDeploy ? GameConstants.DEPLOY_ZONE_Y_P2_MIN + 4 : GameConstants.DEPLOY_ZONE_Y_P2_MIN);
+
+  if (playerId === 1 && position.y > deployZoneMaxY) return false;
+  if (playerId === 2 && position.y < deployZoneMaxY) return false;
+
+  // Spells can be placed anywhere.
+  if (card.type === CardType.Spell) return true;
+
+  // Buildings must be on own side of the river.
+  if (card.type === CardType.Building) {
+    if (playerId === 1 && position.y > GameConstants.RIVER_Y_MIN) return false;
+    if (playerId === 2 && position.y < GameConstants.RIVER_Y_MAX) return false;
+  }
+
+  // Ground troops/champions cannot be placed across the river; flying units
+  // (CardDatabase allowlist mirroring the C# name/mechanics checks) are exempt.
+  if (card.type === CardType.Troop || card.type === CardType.Champion) {
+    if (!card.isFlying) {
+      if (playerId === 1 && position.y > GameConstants.RIVER_Y_MIN) return false;
+      if (playerId === 2 && position.y < GameConstants.RIVER_Y_MAX) return false;
+    }
+  }
+
+  // Footprint-overlap rejection (GAP-1.4): towers/buildings/units block.
+  const newRadius = card.footprintRadius;
+  for (const b of snap.buildings) {
+    if (b.isDead) continue;
+    if (Math.hypot(position.x - b.x, position.y - b.y) < newRadius + b.radius) return false;
+  }
+  for (const t of snap.towers) {
+    if (t.isDead) continue;
+    if (Math.hypot(position.x - t.x, position.y - t.y) < newRadius + t.radius) return false;
+  }
+  for (const u of snap.units) {
+    if (u.isDead) continue;
+    if (Math.hypot(position.x - u.x, position.y - u.y) < newRadius + u.radius) return false;
+  }
+
+  return true;
 }
 
 export enum UnitState {
@@ -461,98 +589,330 @@ export class BattleSimulation {
     }
   }
 
-  private PlayCard(player: PlayerStateInternal, opponent: PlayerStateInternal, cardId: number, position: Vector2): void {
-    // Card validation would use card database
-    // Simplified for server - actual validation in BattleServer
+  // Deterministic multi-unit formation offsets (count > 1 cards).
+  private static readonly SPAWN_OFFSETS: Vector2[] = [
+    { x: 0, y: 0 },
+    { x: 0.7, y: 0.3 },
+    { x: -0.7, y: 0.3 },
+    { x: 0, y: -0.7 },
+    { x: 0.7, y: -0.7 },
+    { x: -0.7, y: -0.7 },
+  ];
+
+  private lookupCard(cardId: number): CardData | undefined {
+    const def = getCardDefinition(cardId);
+    const combat = getCardStats(cardId);
+    if (!def || !combat) return undefined;
+    const toRarity = (): CardRarity => {
+      switch (def.rarity) {
+        case 'common': return CardRarity.Common;
+        case 'rare': return CardRarity.Rare;
+        case 'epic': return CardRarity.Epic;
+        case 'legendary': return CardRarity.Legendary;
+        case 'champion': return CardRarity.Champion;
+      }
+    };
+    const toType = (): CardType => {
+      switch (def.type) {
+        case 'troop': return CardType.Troop;
+        case 'spell': return CardType.Spell;
+        case 'building': return CardType.Building;
+        case 'champion': return CardType.Champion;
+      }
+    };
+    const toTargetType = (): string => combat.targetType;
+    return {
+      cardId: def.cardId,
+      name: def.name,
+      rarity: toRarity(),
+      type: toType(),
+      elixirCost: def.elixirCost,
+      hitpoints: combat.hp,
+      damage: combat.damage,
+      hitSpeed: combat.hitSpeed,
+      range: combat.range,
+      speed: String(combat.speed),
+      deployTime: 1,
+      targetType: toTargetType(),
+      count: combat.count,
+      mechanics: { isFlying: combat.isFlying },
+      GetStats: (level: number): UnitStats => ({
+        level,
+        hp: combat.hp,
+        damage: combat.damage,
+        hitSpeed: combat.hitSpeed,
+        range: combat.range,
+        speed: combat.speed,
+        collisionRadius: 0.5,
+        hitboxRadius: 0.6,
+      }),
+    };
+  }
+
+  private toBuildingStats(combat: CardCombatStats): CardStats {
+    return {
+      level: 1,
+      hp: combat.hp,
+      damage: combat.damage,
+      hitSpeed: combat.hitSpeed,
+      range: combat.range,
+      lifetime: combat.lifetime ?? 40,
+      spawnInterval: 0,
+      spawnCount: 0,
+    };
+  }
+
+  private deployCardInfo(cardId: number, card: CardData): DeployCardInfo {
+    return {
+      type: card.type,
+      name: card.name,
+      isFlying: isFlyingCard(cardId),
+      footprintRadius: getFootprintRadius(cardId),
+    };
+  }
+
+  public SpawnUnit(card: CardData, playerId: number, position: Vector2, level: number): void {
+    const stats = card.GetStats(level);
+    const count = Math.max(1, card.count);
+    for (let i = 0; i < count; i++) {
+      const offset = BattleSimulation.SPAWN_OFFSETS[i % BattleSimulation.SPAWN_OFFSETS.length];
+      const spawnPos = FixedVector2.FromVector2({ x: position.x + offset.x, y: position.y + offset.y });
+      const unit = new Unit(this._nextEntityId++, playerId, card, stats, spawnPos, level);
+      this._units.push(unit);
+      this._entities.set(unit.Id, unit);
+      unit.AcquireTarget(this.GetPotentialTargets(unit));
+
+      this.LogEvent({
+        tick: this._currentTick,
+        type: EventType.UnitSpawned,
+        playerId,
+        cardId: card.cardId,
+        entityId: unit.Id,
+        position: spawnPos,
+        damage: 0,
+        hpRemaining: unit.CurrentHP,
+        elixir: 0,
+      });
+
+      this.LogReplayEvent({
+        tick: this._currentTick,
+        type: ReplayEventType.UnitSpawned,
+        playerId,
+        cardId: card.cardId,
+        entityId: unit.Id,
+        position: spawnPos,
+        damage: 0,
+        hpRemaining: unit.CurrentHP,
+        elixir: 0,
+      });
+    }
+    this._collisionGridDirty = true;
+  }
+
+  public SpawnBuilding(card: CardData, playerId: number, position: Vector2, level: number): void {
+    // Public C# mirror: fall back to the CardData scalars when the id is not
+    // in the server catalogue (internal callers always pass catalogued cards).
+    const combat = getCardStats(card.cardId) ?? {
+      hp: card.hitpoints,
+      damage: card.damage,
+      hitSpeed: card.hitSpeed,
+      range: card.range,
+      speed: 1,
+      count: 1,
+      targetType: 'ground' as const,
+      isFlying: false,
+    };
+    const stats = this.toBuildingStats(combat);
     const fixedPos = FixedVector2.FromVector2(position);
-    
-    // Deduct elixir (cost lookup from card database)
-    // player.Elixir -= cost;
-    
+    const building = new Building(this._nextEntityId++, playerId, card, stats, fixedPos, level);
+    this._buildings.push(building);
+    this._entities.set(building.Id, building);
+    this._collisionGridDirty = true;
+
+    this.LogEvent({
+      tick: this._currentTick,
+      type: EventType.BuildingPlaced,
+      playerId,
+      cardId: card.cardId,
+      entityId: building.Id,
+      position: fixedPos,
+      damage: 0,
+      hpRemaining: building.CurrentHP,
+      elixir: 0,
+    });
+
+    this.LogReplayEvent({
+      tick: this._currentTick,
+      type: ReplayEventType.BuildingPlaced,
+      playerId,
+      cardId: card.cardId,
+      entityId: building.Id,
+      position: fixedPos,
+      damage: 0,
+      hpRemaining: building.CurrentHP,
+      elixir: 0,
+    });
+  }
+
+  // Shared spell-resolution core (no elixir/draw handling): instant-damage
+  // spells apply immediately; duration spells become active SpellEffects.
+  // Instant spell damage hits towers at full value (documented
+  // simplification — no tower spell-resistance model on the server yet).
+  private castSpellEffect(player: PlayerStateInternal, spellId: number, position: Vector2): void {
+    const card = this.lookupCard(spellId);
+    if (!card || card.type !== CardType.Spell) return;
+    const fixedPos = FixedVector2.FromVector2(position);
+
+    const spellEffect = SpellEffect.CreateFromCard(this._nextEntityId++, player.PlayerId, card, position, 1);
+    if (!spellEffect) return;
+
+    if (spellEffect.IsInstant) {
+      const targets = this.GetAllEntitiesInRadius(fixedPos, spellEffect.Radius);
+      for (const entity of targets) {
+        if (entity.OwnerPlayerId === player.PlayerId || entity.IsDead) continue;
+        if (entity.Type !== EntityTypeInternal.Unit &&
+            entity.Type !== EntityTypeInternal.Building &&
+            entity.Type !== EntityTypeInternal.Tower) continue;
+        entity.TakeDamage(spellEffect.InstantDamage, spellEffect.Id);
+      }
+    } else {
+      this._activeSpells.push(spellEffect);
+      this._entities.set(spellEffect.Id, spellEffect);
+    }
+
+    this.LogEvent({
+      tick: this._currentTick,
+      type: EventType.SpellCast,
+      playerId: player.PlayerId,
+      cardId: spellId,
+      entityId: spellEffect.Id,
+      position: fixedPos,
+      damage: spellEffect.IsInstant ? spellEffect.InstantDamage : 0,
+      hpRemaining: 0,
+      elixir: player.Elixir,
+    });
+
+    this.LogReplayEvent({
+      tick: this._currentTick,
+      type: ReplayEventType.SpellCast,
+      playerId: player.PlayerId,
+      cardId: spellId,
+      entityId: spellEffect.Id,
+      position: fixedPos,
+      damage: spellEffect.IsInstant ? spellEffect.InstantDamage : 0,
+      hpRemaining: 0,
+      elixir: player.Elixir,
+    });
+  }
+
+  private PlayCard(player: PlayerStateInternal, opponent: PlayerStateInternal, cardId: number, position: Vector2): void {
+    const card = this.lookupCard(cardId);
+    if (!card) return;
+
+    if (player.Elixir < card.elixirCost) return;
+
+    if (!isValidDeployPosition(player.PlayerId, position, this.deployCardInfo(cardId, card), buildDeploySnapshot(this))) return;
+
+    player.Elixir -= card.elixirCost;
+    const fixedPos = FixedVector2.FromVector2(position);
+
+    switch (card.type) {
+      case CardType.Troop:
+      case CardType.Champion:
+        this.SpawnUnit(card, player.PlayerId, position, 1);
+        break;
+      case CardType.Building:
+        this.SpawnBuilding(card, player.PlayerId, position, 1);
+        break;
+      case CardType.Spell:
+        this.castSpellEffect(player, cardId, position);
+        break;
+    }
+
     // Draw next card
     player.DrawCard();
 
-    this.LogEvent({ 
-      tick: this._currentTick, 
-      type: EventType.CardPlayed, 
-      playerId: player.PlayerId, 
-      cardId, 
-      entityId: 0, 
-      position: fixedPos, 
-      damage: 0, 
-      hpRemaining: 0, 
-      elixir: player.Elixir 
+    this.LogEvent({
+      tick: this._currentTick,
+      type: EventType.CardPlayed,
+      playerId: player.PlayerId,
+      cardId,
+      entityId: 0,
+      position: fixedPos,
+      damage: 0,
+      hpRemaining: 0,
+      elixir: player.Elixir
     });
 
-    this.LogReplayEvent({ 
-      tick: this._currentTick, 
-      type: ReplayEventType.CardPlayed, 
-      playerId: player.PlayerId, 
-      cardId, 
-      entityId: 0, 
-      position: fixedPos, 
-      damage: 0, 
-      hpRemaining: 0, 
-      elixir: player.Elixir 
+    this.LogReplayEvent({
+      tick: this._currentTick,
+      type: ReplayEventType.CardPlayed,
+      playerId: player.PlayerId,
+      cardId,
+      entityId: 0,
+      position: fixedPos,
+      damage: 0,
+      hpRemaining: 0,
+      elixir: player.Elixir
     });
   }
 
   private CastSpell(player: PlayerStateInternal, opponent: PlayerStateInternal, spellId: number, position: Vector2): void {
-    const fixedPos = FixedVector2.FromVector2(position);
-    
-    // Create spell effect
-    // const spellEffect = SpellEffect.CreateFromCard(...)
-    
-    this.LogEvent({ 
-      tick: this._currentTick, 
-      type: EventType.SpellCast, 
-      playerId: player.PlayerId, 
-      cardId: spellId, 
-      entityId: 0, 
-      position: fixedPos, 
-      damage: 0, 
-      hpRemaining: 0, 
-      elixir: 0 
-    });
+    const card = this.lookupCard(spellId);
+    if (!card || card.type !== CardType.Spell) return;
 
-    this.LogReplayEvent({ 
-      tick: this._currentTick, 
-      type: ReplayEventType.SpellCast, 
-      playerId: player.PlayerId, 
-      cardId: spellId, 
-      entityId: 0, 
-      position: fixedPos, 
-      damage: 0, 
-      hpRemaining: 0, 
-      elixir: 0 
-    });
+    if (player.Elixir < card.elixirCost) return;
+
+    player.Elixir -= card.elixirCost;
+
+    this.castSpellEffect(player, spellId, position);
+
+    player.DrawCard();
   }
 
   private UseChampionAbility(player: PlayerStateInternal, opponent: PlayerStateInternal, position: Vector2): void {
+    const champion = this._units.find(
+      (u) => u.OwnerPlayerId === player.PlayerId && !u.IsDead && u.CardData.rarity === CardRarity.Champion,
+    );
+    if (!champion) return;
+
+    if (player.Elixir < CHAMPION_ABILITY_COST) return;
+    player.Elixir -= CHAMPION_ABILITY_COST;
+
+    // Simplified ability: burst damage around the target point using the
+    // champion's own damage (no invisibility/dash model on the server yet).
     const fixedPos = FixedVector2.FromVector2(position);
-    
-    this.LogEvent({ 
-      tick: this._currentTick, 
-      type: EventType.ChampionAbility, 
-      playerId: player.PlayerId, 
-      cardId: 0, 
-      entityId: 0, 
-      position: fixedPos, 
-      damage: 0, 
-      hpRemaining: 0, 
-      elixir: 0 
+    const targets = this.GetAllEntitiesInRadius(fixedPos, Fixed.FromFloat(CHAMPION_ABILITY_RADIUS));
+    for (const entity of targets) {
+      if (entity.OwnerPlayerId === player.PlayerId || entity.IsDead) continue;
+      if (entity.Type !== EntityTypeInternal.Unit &&
+          entity.Type !== EntityTypeInternal.Building &&
+          entity.Type !== EntityTypeInternal.Tower) continue;
+      entity.TakeDamage(champion.Stats.damage, champion.Id);
+    }
+
+    this.LogEvent({
+      tick: this._currentTick,
+      type: EventType.ChampionAbility,
+      playerId: player.PlayerId,
+      cardId: champion.CardData.cardId,
+      entityId: champion.Id,
+      position: fixedPos,
+      damage: champion.Stats.damage,
+      hpRemaining: 0,
+      elixir: player.Elixir
     });
 
-    this.LogReplayEvent({ 
-      tick: this._currentTick, 
-      type: ReplayEventType.ChampionAbility, 
-      playerId: player.PlayerId, 
-      cardId: 0, 
-      entityId: 0, 
-      position: fixedPos, 
-      damage: 0, 
-      hpRemaining: 0, 
-      elixir: 0 
+    this.LogReplayEvent({
+      tick: this._currentTick,
+      type: ReplayEventType.ChampionAbility,
+      playerId: player.PlayerId,
+      cardId: champion.CardData.cardId,
+      entityId: champion.Id,
+      position: fixedPos,
+      damage: champion.Stats.damage,
+      hpRemaining: 0,
+      elixir: player.Elixir
     });
   }
 
@@ -686,6 +1046,10 @@ export class BattleSimulation {
     }
   }
 
+  // Port of C# CheckWinCondition (BattleSimulation.cs:828-901):
+  // regulation-expiry crown compare, overtime sudden death, overtime-timeout
+  // HP tiebreak. Crowns are EARNED by destroying ENEMY towers (server used
+  // to credit own-side deaths — fixed here to match C#).
   private CheckWinCondition(): void {
     let p1KingDead = false, p2KingDead = false;
     let p1Crowns = 0, p2Crowns = 0;
@@ -693,21 +1057,51 @@ export class BattleSimulation {
     for (const tower of this._towers) {
       if (tower.OwnerPlayerId === 1) {
         if (tower.TowerType === TowerType.King && tower.IsDead) p1KingDead = true;
-        if (tower.TowerType !== TowerType.King && tower.IsDead) p1Crowns++;
+        if (tower.TowerType !== TowerType.King && tower.IsDead) p2Crowns++;
       } else {
         if (tower.TowerType === TowerType.King && tower.IsDead) p2KingDead = true;
-        if (tower.TowerType !== TowerType.King && tower.IsDead) p2Crowns++;
+        if (tower.TowerType !== TowerType.King && tower.IsDead) p1Crowns++;
       }
     }
+
+    const regulationEndTick = this._config.battleDuration * BattleSimulation.TICK_RATE;
+    const battleEndTick = (this._config.battleDuration + this._config.overtimeDuration) * BattleSimulation.TICK_RATE;
+    const isOvertime = this._currentTick >= regulationEndTick;
+    const pastOvertimeEnd = this._currentTick >= battleEndTick;
 
     let newStatus = this._status;
 
     if (p1KingDead || p2KingDead) {
+      // King tower destroyed = instant 3-crown win.
       newStatus = p1KingDead ? BattleStatus.Player2Won : BattleStatus.Player1Won;
       p1Crowns = p1KingDead ? 0 : 3;
       p2Crowns = p2KingDead ? 0 : 3;
-    } else if (this._currentTick >= (this._config.battleDuration + this._config.overtimeDuration) * BattleSimulation.TICK_RATE) {
-      newStatus = BattleStatus.Draw;
+    } else if (!isOvertime) {
+      // Regulation time still running: keep playing.
+      newStatus = BattleStatus.Playing;
+    } else if (!pastOvertimeEnd) {
+      // Regulation-expiry crown compare + overtime sudden death: the moment
+      // regulation ends with unequal crowns, the leader wins immediately;
+      // any later first-tower-destroyed during overtime wins.
+      if (p1Crowns !== p2Crowns) {
+        newStatus = p1Crowns > p2Crowns ? BattleStatus.Player1Won : BattleStatus.Player2Won;
+      }
+    } else {
+      // Overtime timeout: lowest-surviving-tower-HP tiebreak. Sum surviving
+      // tower HP per side; higher total wins; exact equal = draw.
+      if (p1Crowns !== p2Crowns) {
+        newStatus = p1Crowns > p2Crowns ? BattleStatus.Player1Won : BattleStatus.Player2Won;
+      } else {
+        let hp1 = 0, hp2 = 0;
+        for (const tower of this._towers) {
+          if (tower.IsDead) continue;
+          if (tower.OwnerPlayerId === 1) hp1 += tower.CurrentHP;
+          else hp2 += tower.CurrentHP;
+        }
+        if (hp1 > hp2) newStatus = BattleStatus.Player1Won;
+        else if (hp2 > hp1) newStatus = BattleStatus.Player2Won;
+        else newStatus = BattleStatus.Draw;
+      }
     }
 
     if (newStatus !== this._status && newStatus !== BattleStatus.Playing) {
@@ -1126,22 +1520,56 @@ export class SpellEffect extends Entity {
   public readonly Duration: number;
   public RemainingTime: number;
   public IsFinished: boolean = false;
+  // Instant-damage spells (Fireball/Rocket/Zap/Arrows/Log) apply
+  // InstantDamage immediately on cast and never enter _activeSpells.
+  public readonly IsInstant: boolean;
+  public readonly InstantDamage: number;
 
-  constructor(id: number, owner: number, spellType: SpellType, position: FixedVector2, radius: Fixed, damagePerSecond: number, duration: number) {
+  constructor(id: number, owner: number, spellType: SpellType, position: FixedVector2, radius: Fixed, damagePerSecond: number, duration: number, instantDamage: number = 0) {
     super(id, owner, EntityTypeInternal.SpellEffect, position, 1);
     this.SpellType = spellType;
     this.Radius = radius;
     this.DamagePerSecond = damagePerSecond;
     this.Duration = duration;
     this.RemainingTime = duration;
+    this.IsInstant = duration <= 0;
+    this.InstantDamage = instantDamage;
   }
 
   public static CreateFromCard(id: number, owner: number, cardData: CardData, position: Vector2, level: number): SpellEffect | null {
-    // Factory method - would parse cardData.mechanics
-    return null;
+    const combat = getCardStats(cardData.cardId);
+    if (!combat) return null;
+    const spellType = SpellEffect.spellTypeFromName(cardData.name);
+    const radius = Fixed.FromFloat(combat.spellRadius ?? 2);
+    const duration = combat.spellDuration ?? 0;
+    const dps = combat.spellDps ?? 0;
+    const instantDamage = duration <= 0 ? combat.damage : 0;
+    return new SpellEffect(id, owner, spellType, FixedVector2.FromVector2(position), radius, dps, duration, instantDamage);
+  }
+
+  private static spellTypeFromName(name: string): SpellType {
+    switch (name) {
+      case 'Poison':
+        return SpellType.Poison;
+      case 'Freeze':
+        return SpellType.Freeze;
+      case 'Tornado':
+        return SpellType.Push;
+      case 'Rage':
+        return SpellType.Rage;
+      case 'Clone':
+        return SpellType.Clone;
+      default:
+        return SpellType.Damage;
+    }
   }
 
   public Tick(dt: number, sim: BattleSimulation): void {
+    // Instant effects never live in _activeSpells; guard anyway.
+    if (this.IsInstant) {
+      this.IsFinished = true;
+      return;
+    }
     this.RemainingTime -= dt;
     if (this.RemainingTime <= 0) {
       this.IsFinished = true;

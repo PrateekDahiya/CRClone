@@ -1,13 +1,13 @@
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { DeterministicRNG } from '../utils/rng';
-import { BattleType, BattleStatus, PlayerInput, PlayerBattleInfo, EntityState, PlayerState, Vector2, EntityType, TowerType } from '../types';
+import { BattleType, BattleStatus, PlayerInput, PlayerBattleInfo, EntityState, PlayerState, EntityType, TowerType, CardType } from '../types';
 import { PlayerService } from '../services/PlayerService';
-import { BattleSimulation, FixedVector2 } from './BattleSimulation';
+import { BattleSimulation, buildDeploySnapshot, isValidDeployPosition } from './BattleSimulation';
 import { EntityManager } from './EntityManager';
 import { ReplayRecorder, PlayerInputRecord } from './ReplayRecorder';
 import { RatingSystem, ratingSystem } from '../matchmaking/RatingSystem';
-import { getCardElixirCost, CHAMPION_ABILITY_COST } from './CardDatabase';
+import { getCardElixirCost, getCardDefinition, isFlyingCard, getFootprintRadius, CHAMPION_ABILITY_COST } from './CardDatabase';
 
 interface BattlePlayer {
   info: PlayerBattleInfo;
@@ -47,6 +47,7 @@ export class BattleServer {
   private _connectionManager: any;
   private _isBotMatch: boolean = false;
   private _inputBuffers: Map<string, PlayerInput[]> = new Map();
+  private _botRng: DeterministicRNG;
 
   constructor(
     battleId: string,
@@ -58,6 +59,9 @@ export class BattleServer {
     this.battleId = battleId;
     this._playerService = playerService;
     this._startTime = Date.now();
+    // Bot RNG is seeded from the battle seed so bot matches are reproducible
+    // (ISSUE-204). Guard seed 0: Xorshift with a zero state never advances.
+    this._botRng = new DeterministicRNG(BigInt(seed) === 0n ? 1n : BigInt(seed));
 
     // Initialize simulation
     this._simulation = new BattleSimulation();
@@ -200,10 +204,11 @@ export class BattleServer {
   }
 
   private runBotAI(): void {
-    // Simple bot AI - play random card if enough elixir
+    // Simple bot AI - play random card if enough elixir. Positions come from
+    // the seeded DeterministicRNG so bot matches are reproducible (ISSUE-204).
     if (this._player2.elixir >= 3 && this._player2.hand.length > 0) {
       const cardId = this._player2.hand[0];
-      const position = { x: 9 + (Math.random() - 0.5) * 4, y: 20 + (Math.random() - 0.5) * 4 };
+      const position = { x: 9 + (this._botRng.nextFloat() - 0.5) * 4, y: 20 + (this._botRng.nextFloat() - 0.5) * 4 };
       this._simulation.QueueInput(2, {
         type: 'play_card',
         cardId,
@@ -217,16 +222,19 @@ export class BattleServer {
     return this.getPlayerById(playerId) !== null;
   }
 
-  handleInput(playerId: string, input: PlayerInput): void {
-    if (this._status !== BattleStatus.Playing) return;
+  // Returns null when the input is accepted, otherwise a typed rejection
+  // code (INVALID_POSITION et al.) that MessageHandler reports to the sender.
+  handleInput(playerId: string, input: PlayerInput): string | null {
+    if (this._status !== BattleStatus.Playing) return 'BATTLE_NOT_ACTIVE';
 
     const player = this.getPlayerById(playerId);
-    if (!player) return;
+    if (!player) return 'NOT_IN_BATTLE';
 
     // Validate input
-    if (!this.validateInput(player, input)) {
-      logger.warn('Invalid input rejected', { playerId, input });
-      return;
+    const rejection = this.validateInput(player, input);
+    if (rejection !== null) {
+      logger.warn('Invalid input rejected', { playerId, input, reason: rejection });
+      return rejection;
     }
 
     // Queue for next tick
@@ -243,6 +251,7 @@ export class BattleServer {
 
     // Send immediate acknowledgment
     this.sendInputAck(playerId, input.clientTick);
+    return null;
   }
 
   handleInputAck(playerId: string, ackTick: number): void {
@@ -287,11 +296,12 @@ export class BattleServer {
     return resent;
   }
 
-  private validateInput(player: BattlePlayer, input: PlayerInput): boolean {
+  // Null = valid; otherwise a typed rejection code for the sender.
+  private validateInput(player: BattlePlayer, input: PlayerInput): string | null {
     // Check card ownership
     if (input.type === 'play_card' && input.cardId !== undefined) {
       if (!player.hand.includes(input.cardId)) {
-        return false;
+        return 'CARD_NOT_IN_HAND';
       }
     }
 
@@ -303,7 +313,7 @@ export class BattleServer {
     if (cardId !== undefined) {
       const realCost = getCardElixirCost(cardId);
       if (realCost === undefined) {
-        return false;
+        return 'UNKNOWN_CARD';
       }
       cost = realCost;
     } else if (input.type === 'champion_ability') {
@@ -312,38 +322,57 @@ export class BattleServer {
       cost = 0;
     }
     if (player.elixir < cost) {
-      return false;
+      return 'INSUFFICIENT_ELIXIR';
     }
 
     // Check position validity
-    if (!this.isValidPosition(player, input.position, input.type)) {
-      return false;
+    if (!this.isValidPosition(player, input)) {
+      return 'INVALID_POSITION';
     }
 
     // Rate limiting
     if (player.pendingInputs.size > 20) {
-      return false;
+      return 'RATE_LIMITED';
     }
 
-    return true;
+    return null;
   }
 
-  private isValidPosition(player: BattlePlayer, position: Vector2, inputType: string): boolean {
-    const isPlayer1 = player === this._player1;
-    const deployZoneMaxY = isPlayer1 ? 16 : 16; // Adjusted for tower destruction
-    const riverBoundary = isPlayer1 ? 14 : 18;
+  // Server mirror of C# IsValidDeployPosition (BattleSimulation.cs:299-369):
+  // canonical 13/19 deploy zones with princess-death expansion, river rules
+  // for ground troops/buildings (flying allowlist via CardDatabase), and the
+  // footprint-overlap loop over live sim state. Spells, champion abilities
+  // and emotes target anywhere (no deploy semantics).
+  private isValidPosition(player: BattlePlayer, input: PlayerInput): boolean {
+    if (input.type === 'cast_spell' || input.type === 'champion_ability' || input.type === 'emote') return true;
 
-    // Spells can be placed anywhere
-    if (inputType === 'cast_spell') return true;
+    const cardId = input.cardId ?? input.spellId;
+    if (cardId === undefined) return true;
+    const def = getCardDefinition(cardId);
+    if (!def) return false;
+    if (def.type === 'spell') return true;
 
-    // Check deploy zone
-    if (isPlayer1 && position.y > deployZoneMaxY) return false;
-    if (!isPlayer1 && position.y < deployZoneMaxY) return false;
+    const toCardType = (): CardType => {
+      switch (def.type) {
+        case 'troop': return CardType.Troop;
+        case 'building': return CardType.Building;
+        case 'champion': return CardType.Champion;
+        default: return CardType.Spell;
+      }
+    };
 
-    // Buildings must be on own side
-    // (would check card type)
-
-    return true;
+    const playerId = player === this._player1 ? 1 : 2;
+    return isValidDeployPosition(
+      playerId,
+      input.position,
+      {
+        type: toCardType(),
+        name: def.name,
+        isFlying: isFlyingCard(cardId),
+        footprintRadius: getFootprintRadius(cardId),
+      },
+      buildDeploySnapshot(this._simulation),
+    );
   }
 
   private getPlayerById(playerId: string): BattlePlayer | null {
@@ -640,11 +669,15 @@ export class BattleServer {
 
     const duration = Math.floor((Date.now() - this._startTime) / 1000);
 
-    // Calculate crowns
+    // Calculate crowns. Crowns are EARNED by destroying ENEMY towers
+    // (mirrors the sim CheckWinCondition semantics): P1 crowns count dead
+    // P2 princess towers and vice versa. A king kill ends 3-0.
     let p1Crowns = 0, p2Crowns = 0;
     for (const tower of this._simulation.Towers) {
-      if (tower.OwnerPlayerId === 1 && tower.TowerType !== TowerType.King && tower.IsDead) p1Crowns++;
-      if (tower.OwnerPlayerId === 2 && tower.TowerType !== TowerType.King && tower.IsDead) p2Crowns++;
+      if (tower.TowerType !== TowerType.King && tower.IsDead) {
+        if (tower.OwnerPlayerId === 1) p2Crowns++;
+        else p1Crowns++;
+      }
     }
     if (winner === 'player1') p1Crowns = 3;
     if (winner === 'player2') p2Crowns = 3;

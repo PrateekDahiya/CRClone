@@ -258,6 +258,124 @@ describe('BattleServer input validation hardening (Agent2 deliverable 2.9)', () 
   });
 });
 
+describe('Server deploy validation parity (ISSUE-203)', () => {
+  // Real BattleServer (un-mocked) for validation tests.
+  const { BattleServer: RealBattleServer2 } = jest.requireActual('../../src/battle/BattleServer');
+  const { MessageHandler: RealMessageHandler2 } = jest.requireActual('../../src/network/MessageHandler');
+
+  const Q1 = { playerId: 'p1', username: 'p1', trophies: 4000, deck: DECK, kingTowerLevel: 11, princessTowerLevel: 11 };
+  const Q2 = { playerId: 'p2', username: 'p2', trophies: 4000, deck: DECK, kingTowerLevel: 11, princessTowerLevel: 11 };
+  const KNIGHT_ID = 26000040;
+  const GIANT_ID = 26000042;
+
+  function makeGuardedBattle() {
+    const battle = new RealBattleServer2('b_pos', Q1, Q2, 4242, { saveBattleResult: jest.fn() });
+    (battle as any)._player1.elixir = 10;
+    (battle as any)._player2.elixir = 10;
+    (battle as any)._status = BattleStatus.Playing;
+    return battle;
+  }
+
+  function buffersOf(battle: any, playerId: string): any[] {
+    return battle._inputBuffers.get(playerId) || [];
+  }
+
+  test('enemy-side troop deploy rejected with INVALID_POSITION', () => {
+    const battle = makeGuardedBattle();
+    // P1 Knight deep in P2 territory (canonical P1 zone is y <= 13).
+    const reason = battle.handleInput('p1', { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 25 }, clientTick: 1 });
+    expect(reason).toBe('INVALID_POSITION');
+    expect(buffersOf(battle, 'p1')).toHaveLength(0);
+  });
+
+  test('P2 enemy-side troop deploy rejected', () => {
+    const battle = makeGuardedBattle();
+    // P2 Knight on P1's side (canonical P2 zone is y >= 19).
+    const reason = battle.handleInput('p2', { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 8 }, clientTick: 1 });
+    expect(reason).toBe('INVALID_POSITION');
+    expect(buffersOf(battle, 'p2')).toHaveLength(0);
+  });
+
+  test('across-river ground deploy rejected', () => {
+    const battle = makeGuardedBattle();
+    // y=15 is past the river line (RIVER_Y_MIN=14) for P1 ground troops.
+    const reason = battle.handleInput('p1', { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 15 }, clientTick: 1 });
+    expect(reason).toBe('INVALID_POSITION');
+    expect(buffersOf(battle, 'p1')).toHaveLength(0);
+  });
+
+  test('occupied-footprint deploy rejected', () => {
+    const battle = makeGuardedBattle();
+    const sim: BattleSimulation = (battle as any)._simulation;
+    sim.Player1.Elixir = 10;
+    sim.QueueInput(1, { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 8 }, clientTick: 1 });
+    sim.Tick();
+    expect(sim.Units.length).toBeGreaterThan(0);
+
+    const reason = battle.handleInput('p1', { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 8 }, clientTick: 2 });
+    expect(reason).toBe('INVALID_POSITION');
+    expect(buffersOf(battle, 'p1')).toHaveLength(0);
+  });
+
+  test('legal deploys accepted on both sides', () => {
+    const battle = makeGuardedBattle();
+    expect(battle.handleInput('p1', { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 8 }, clientTick: 1 })).toBeNull();
+    expect(buffersOf(battle, 'p1')).toHaveLength(1);
+    expect(battle.handleInput('p2', { type: 'play_card', cardId: GIANT_ID, position: { x: 9, y: 24 }, clientTick: 1 })).toBeNull();
+    expect(buffersOf(battle, 'p2')).toHaveLength(1);
+  });
+
+  test('spells stay playable anywhere (documented contract)', () => {
+    const battle = makeGuardedBattle();
+    // P1 Fireball deep in enemy territory targets a tower: accepted.
+    expect(battle.handleInput('p1', { type: 'cast_spell', spellId: 26000044, position: { x: 2, y: 26 }, clientTick: 1 })).toBeNull();
+    expect(buffersOf(battle, 'p1')).toHaveLength(1);
+  });
+
+  function makeHandlerWith(battle: any) {
+    return new RealMessageHandler2(null, null, new Map([['b1', battle]]), null, null, null, null, null, null, null);
+  }
+
+  function makePosClient() {
+    return {
+      id: 'c1',
+      authenticated: true,
+      player: { id: 'p1' },
+      battleId: 'b1',
+      sendError: jest.fn(),
+      queueInput: jest.fn(),
+    };
+  }
+
+  test('MessageHandler reports INVALID_POSITION for cheat deploys', () => {
+    const battle = new RealBattleServer2('b1', Q1, Q2, 4242, { saveBattleResult: jest.fn() });
+    (battle as any)._player1.elixir = 10;
+    (battle as any)._status = BattleStatus.Playing;
+    const handler = makeHandlerWith(battle);
+    const client = makePosClient();
+    handler.handle(client as any, {
+      type: 'input',
+      input: { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 25 }, clientTick: 1 },
+    } as any);
+    expect(client.sendError).toHaveBeenCalledWith('INVALID_POSITION');
+    expect(buffersOf(battle, 'p1')).toHaveLength(0);
+  });
+
+  test('MessageHandler stays silent on legal deploys', () => {
+    const battle = new RealBattleServer2('b1', Q1, Q2, 4242, { saveBattleResult: jest.fn() });
+    (battle as any)._player1.elixir = 10;
+    (battle as any)._status = BattleStatus.Playing;
+    const handler = makeHandlerWith(battle);
+    const client = makePosClient();
+    handler.handle(client as any, {
+      type: 'input',
+      input: { type: 'play_card', cardId: KNIGHT_ID, position: { x: 9, y: 8 }, clientTick: 1 },
+    } as any);
+    expect(client.sendError).not.toHaveBeenCalled();
+    expect(buffersOf(battle, 'p1')).toHaveLength(1);
+  });
+});
+
 describe('Matchmaking Integration (queue -> battle creation)', () => {
   test('Two close players auto-match and drain queue', () => {
     const mm = new Matchmaker(null);

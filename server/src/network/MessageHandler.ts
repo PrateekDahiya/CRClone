@@ -188,7 +188,10 @@ export class MessageHandler {
       client.queueInput(input);
     }
 
-    battle.handleInput(client.player.id, input);
+    const rejection = battle.handleInput(client.player.id, input);
+    if (typeof rejection === 'string' && rejection.length > 0) {
+      client.sendError(rejection);
+    }
   }
 
   private handleInputAck(client: NetworkClient, message: any): void {
