@@ -207,11 +207,16 @@ export const GameConstants = {
 };
 
 export enum EntityTypeInternal {
-  Unit = 0,
-  Building = 1,
-  Projectile = 2,
-  SpellEffect = 3,
-  Tower = 4,
+  // ISSUE-103 wire side: numeric parity with canonical C# CRClone.Core.EntityType
+  // (Assets/Scripts/Core/GameTypes.cs). Wire EntityState.type itself is the string
+  // EntityType (src/types); these numerics are sim-internal only, but kept
+  // identical to Core so any future int serialization matches the client 1:1.
+  None = 0,
+  Unit = 1,
+  Building = 2,
+  Projectile = 3,
+  SpellEffect = 4,
+  Tower = 5,
 }
 
 // Minimal deploy-state view so the canonical C# IsValidDeployPosition rules
