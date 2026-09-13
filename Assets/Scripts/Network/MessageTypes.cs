@@ -2,10 +2,19 @@ using System;
 using System.Collections.Generic;
 using ProtoBuf;
 using UnityEngine;
+using CRClone.Core;
 
 namespace CRClone.Network
 {
     // Enums matching server/types/index.ts exactly
+    //
+    // ISSUE-103: BattleStatus, CardRarity, CardType and EntityType used to be
+    // duplicated here with EntityType off by one vs Core (Network Unit=0.. vs
+    // Core None=0, Unit=1..). The canonical definitions now live ONLY in
+    // CRClone.Core (Assets/Scripts/Core/GameTypes.cs); the message classes
+    // below reference those Core types directly (protobuf-net serializes enums
+    // by numeric value, so the Core values ARE the wire contract — server
+    // EntityTypeInternal must match Core numbering, see Agent 2).
     public enum BattleType
     {
         Ladder = 0,
@@ -15,42 +24,6 @@ namespace CRClone.Network
         Friendly = 4,
         Practice = 5,
         ClanWar = 6
-    }
-
-    public enum BattleStatus
-    {
-        Waiting = 0,
-        Playing = 1,
-        Paused = 2,
-        Player1Won = 3,
-        Player2Won = 4,
-        Draw = 5
-    }
-
-    public enum CardRarity
-    {
-        Common = 0,
-        Rare = 1,
-        Epic = 2,
-        Legendary = 3,
-        Champion = 4
-    }
-
-    public enum CardType
-    {
-        Troop = 0,
-        Spell = 1,
-        Building = 2,
-        Champion = 3
-    }
-
-    public enum EntityType
-    {
-        Unit = 0,
-        Building = 1,
-        Projectile = 2,
-        SpellEffect = 3,
-        Tower = 4
     }
 
     public enum TowerType

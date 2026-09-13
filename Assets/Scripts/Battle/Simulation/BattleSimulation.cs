@@ -5,16 +5,6 @@ using CRClone.Core;
 using FixedMath = CRClone.Core.Math;
 using CRClone.Data;
 using CRClone.Network;
-// AGENT6-COMPAT: CRClone.Core and CRClone.Network both declare BattleStatus,
-// EntityType, CardType and CardRarity with DIFFERENT values. The simulation
-// logic below was written against the Core (gameplay) values, so pin the
-// Core meanings explicitly. Network message types (PlayerInput, InputType,
-// GameStateMessage) resolve via the CRClone.Network using above.
-// TODO(Agent 1/2): de-duplicate the Core/Network enums properly.
-using BattleStatus = CRClone.Core.BattleStatus;
-using EntityType = CRClone.Core.EntityType;
-using CardType = CRClone.Core.CardType;
-using CardRarity = CRClone.Core.CardRarity;
 
 namespace CRClone.Battle.Simulation
 {
