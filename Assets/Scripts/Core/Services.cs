@@ -285,22 +285,6 @@ namespace CRClone.Core
         }
 
         // UI Event Payloads
-        public enum ScreenType
-        {
-            MainMenu,
-            Lobby,
-            DeckBuilder,
-            Battle,
-            BattleResult,
-            Shop,
-            Clan,
-            Profile,
-            Settings,
-            ChestUnlock,
-            QuestLog,
-            Tournament
-        }
-
         public struct PlayerDataChangedEvent
         {
             public string fieldName;
@@ -382,5 +366,21 @@ namespace CRClone.Core
         public static void Raise(CardUpgradedEvent e) => OnCardUpgraded?.Invoke(e);
         public static void Raise(ChestUnlockedEvent e) => OnChestUnlocked?.Invoke(e);
         public static void Raise(QuestCompletedEvent e) => OnQuestCompleted?.Invoke(e);
+    }
+
+    public enum ScreenType
+    {
+        MainMenu,
+        Lobby,
+        DeckBuilder,
+        Battle,
+        BattleResult,
+        Shop,
+        Clan,
+        Profile,
+        Settings,
+        ChestUnlock,
+        QuestLog,
+        Tournament
     }
 }
