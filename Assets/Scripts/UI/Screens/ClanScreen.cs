@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Network;
+using CRClone.UI.Components;
 
 namespace CRClone.UI.Screens
 {
@@ -253,7 +255,7 @@ namespace CRClone.UI.Screens
 
             var chatMessage = new ChatMessage
             {
-                senderId = Services.Get<GameManager>().LocalPlayer?.playerId ?? "",
+                senderId = Services.Get<GameManager>().LocalPlayer?.playerId.ToString() ?? "",
                 senderName = Services.Get<GameManager>().LocalPlayer?.playerName ?? "You",
                 message = message,
                 timestamp = DateTime.Now,
@@ -276,8 +278,8 @@ namespace CRClone.UI.Screens
 
         private void OnDonateRequest()
         {
-            var modal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DonateRequestModal"));
-            var modalUI = modal?.GetComponent<DonateRequestModal>();
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DonateRequestModal"));
+            var modalUI = UIManager.Instance?.GetComponentInChildren<DonateRequestModal>();
             if (modalUI != null)
             {
                 modalUI.Initialize(OnDonateRequestConfirmed);
@@ -295,7 +297,7 @@ namespace CRClone.UI.Screens
             if (playerData?.collection.ContainsKey(cardId) == true)
             {
                 int maxDonate = GetMaxDonation(cardId);
-                if (playerData.collection[cardId] >= maxDonate)
+                if (playerData.collection[cardId].count >= maxDonate)
                 {
                     Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonate { cardId = cardId, recipientId = requesterId, count = maxDonate });
                     EventBus.RaiseToast("Donated!");
@@ -330,7 +332,7 @@ namespace CRClone.UI.Screens
 
         private void OnLeaveClan()
         {
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/LeaveClanConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/LeaveClanConfirmModal"));
         }
 
         private void OnMemberAction(ClanMember member, MemberAction action)

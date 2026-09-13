@@ -98,7 +98,7 @@ namespace CRClone.UI.Screens
         private void OnConcedeClicked()
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ConcedeConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ConcedeConfirmModal"));
         }
 
         private void OnQuitClicked()

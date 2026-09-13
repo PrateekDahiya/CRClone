@@ -129,7 +129,7 @@ namespace CRClone.UI.Screens
                 var options = new System.Collections.Generic.List<string>();
                 foreach (var res in resolutions)
                 {
-                    options.Add($"{res.width}x{res.height} @{res.refreshRate}Hz");
+                    options.Add($"{res.width}x{res.height} @{Mathf.RoundToInt((float)res.refreshRateRatio.value)}Hz");
                 }
                 if (options.Count == 0) options.Add("1920x1080 @60Hz");
                 _resolutionDropdown.AddOptions(options);
@@ -512,7 +512,7 @@ namespace CRClone.UI.Screens
 
         private void OnDeleteAccount()
         {
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DeleteAccountConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DeleteAccountConfirmModal"));
         }
 
         private void OnHighContrastChanged(bool value)
