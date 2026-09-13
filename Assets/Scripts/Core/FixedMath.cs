@@ -208,7 +208,6 @@ namespace CRClone.Core.Math
         
         public static implicit operator Vector2(FixedVector2 v) => v.ToVector2();
         public static implicit operator FixedVector2(Vector2 v) => new FixedVector2(Fixed.FromFloat(v.x), Fixed.FromFloat(v.y));
-        public static implicit operator FixedVector2(UnityEngine.Vector2 v) => new FixedVector2(Fixed.FromFloat(v.x), Fixed.FromFloat(v.y));
 
         public override string ToString() => $"({x}, {y})";
     }

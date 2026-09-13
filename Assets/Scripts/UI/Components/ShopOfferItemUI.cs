@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Data;
 using CRClone.UI.Animation;
+using CRClone.UI.Screens;
 
 namespace CRClone.UI.Components
 {
@@ -20,10 +21,10 @@ namespace CRClone.UI.Components
         [SerializeField] private Image _rarityFrame;
         [SerializeField] private GameObject _ownedBadge;
 
-        private ShopScreen.ShopOffer _offer;
-        private Action<ShopScreen.ShopOffer> _onPurchaseClicked;
+        private ShopOffer _offer;
+        private Action<ShopOffer> _onPurchaseClicked;
 
-        public void Initialize(ShopScreen.ShopOffer offer, Action<ShopScreen.ShopOffer> onPurchaseClicked)
+        public void Initialize(ShopOffer offer, Action<ShopOffer> onPurchaseClicked)
         {
             _offer = offer;
             _onPurchaseClicked = onPurchaseClicked;
@@ -51,7 +52,7 @@ namespace CRClone.UI.Components
                 // Set gold/gem icon based on cost type
             }
 
-            if (_rarityFrame != null && _offer.rewardType == ShopScreen.RewardType.Card)
+            if (_rarityFrame != null && _offer.rewardType == RewardType.Card)
             {
                 var cardData = Services.Get<DataManager>().GetCard(_offer.rewardCardId);
                 if (cardData != null)
@@ -68,7 +69,7 @@ namespace CRClone.UI.Components
             if (_ownedBadge != null)
             {
                 var playerData = Services.Get<GameManager>().LocalPlayer;
-                bool owned = _offer.rewardType == ShopScreen.RewardType.Card && 
+                bool owned = _offer.rewardType == RewardType.Card && 
                             playerData?.collection.ContainsKey(_offer.rewardCardId) == true;
                 _ownedBadge.SetActive(owned);
             }

@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using CRClone.Core;
 using CRClone.Data;
+using CRClone.Battle.UI;
 using CRClone.UI.Animation;
 
 namespace CRClone.UI.Animation
