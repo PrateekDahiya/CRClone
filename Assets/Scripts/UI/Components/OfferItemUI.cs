@@ -40,7 +40,7 @@ namespace CRClone.UI.Components
         {
             if (_offer == null) return;
 
-            if (_titleText != null) _titleText.text = _offer.title;
+            if (_titleText != null) _titleText.text = _offer.name;
             if (_costText != null) _costText.text = _offer.cost.ToString("N0");
 
             if (_iconImage != null && _offer.iconSprite != null)
@@ -67,9 +67,9 @@ namespace CRClone.UI.Components
                 _timerContainer.gameObject.SetActive(_offer.timeRemaining > TimeSpan.Zero);
             }
 
-            if (_rarityFrame != null && _offer.type == ShopScreen.OfferType.Card)
+            if (_rarityFrame != null && _offer.rewardType == RewardType.Card)
             {
-                var cardData = Services.Get<DataManager>().GetCard(_offer.cardId);
+                var cardData = Services.Get<DataManager>().GetCard(_offer.rewardCardId);
                 if (cardData != null)
                 {
                     Color frameColor = cardData.rarity switch
@@ -87,23 +87,23 @@ namespace CRClone.UI.Components
 
             if (_descriptionText != null)
             {
-                switch (_offer.type)
+                switch (_offer.rewardType)
                 {
-                    case ShopScreen.OfferType.Card:
-                        var cardData = Services.Get<DataManager>().GetCard(_offer.cardId);
-                        _descriptionText.text = cardData != null ? $"{cardData.cardName} x{_offer.cardCount}" : "";
+                    case RewardType.Card:
+                        var cardData = Services.Get<DataManager>().GetCard(_offer.rewardCardId);
+                        _descriptionText.text = cardData != null ? $"{cardData.cardName} x{_offer.rewardCount}" : "";
                         break;
-                    case ShopScreen.OfferType.Gold:
+                    case RewardType.Gold:
                         _descriptionText.text = $"{_offer.goldAmount:N0} Gold";
                         break;
-                    case ShopScreen.OfferType.Gems:
+                    case RewardType.Gems:
                         _descriptionText.text = $"{_offer.gemAmount:N0} Gems";
                         break;
-                    case ShopScreen.OfferType.Chest:
+                    case RewardType.Chest:
                         _descriptionText.text = "Chest";
                         break;
-                    case ShopScreen.OfferType.WildCard:
-                        _descriptionText.text = $"Wild Card x{_offer.cardCount}";
+                    case RewardType.WildCard:
+                        _descriptionText.text = $"Wild Card x{_offer.rewardCount}";
                         break;
                 }
             }

@@ -120,7 +120,7 @@ namespace CRClone.UI.Screens
                 {
                     var logEntry = playerData.battleLog[i];
                     var logGO = Instantiate(_battleLogItemPrefab, _battleLogContainer);
-                    var logUI = logGO.GetComponent<BattleLogItemUI>();
+                    var logUI = logGO.GetComponent<ProfileBattleLogItemUI>();
                     if (logUI != null)
                     {
                         logUI.Initialize(logEntry);
@@ -151,7 +151,7 @@ namespace CRClone.UI.Screens
         }
     }
 
-    public class BattleLogItemUI : MonoBehaviour
+    public class ProfileBattleLogItemUI : MonoBehaviour
     {
         [SerializeField] private Text _dateText;
         [SerializeField] private Text _resultText;

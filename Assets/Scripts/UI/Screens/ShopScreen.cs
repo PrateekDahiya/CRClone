@@ -466,6 +466,10 @@ namespace CRClone.UI.Screens
         public CardRarity rewardRarity;
         public Sprite iconSprite;
         public bool isSpecial;
+        public bool purchased;
+        public TimeSpan timeRemaining;
+        public int goldAmount;
+        public int gemAmount;
     }
 
     public enum CurrencyType
