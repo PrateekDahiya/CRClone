@@ -1131,3 +1131,4 @@ namespace CRClone.Battle.Simulation
     }
 
     // Use FixedMath.DeterministicRNG from CRClone.Core.FixedMath
+}

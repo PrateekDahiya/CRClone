@@ -194,7 +194,6 @@ private void ParseSpellStats(CardData card, CardLevelStats stats)
                     break;
             }
         }
-        }
 
         private float GetSpellRadius(CardData card)
         {
