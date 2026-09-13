@@ -107,7 +107,8 @@ namespace CRClone.UI
                     break;
                 case TransitionType.Fade:
                     yield return FadeOut();
-                    break                case TransitionType.ScaleFade:
+                    break;
+                case TransitionType.ScaleFade:
                     yield return ScaleFadeOut();
                     break;
             }
