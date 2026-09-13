@@ -27,7 +27,7 @@ namespace CRClone.UI.Components
         {
             _onNameChanged = onNameChanged;
             _errorText?.gameObject.SetActive(false);
-            _nameInput?.text = "";
+            if (_nameInput != null) _nameInput.text = "";
         }
 
         private void OnNameInputChanged(string text)

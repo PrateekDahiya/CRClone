@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Data;
+using CRClone.Systems;
 using CRClone.UI.Animation;
 
 namespace CRClone.UI.Components
@@ -90,7 +91,7 @@ namespace CRClone.UI.Components
                              _currentLevel < 14;
 
             _upgradeButton?.gameObject.SetActive(canUpgrade);
-            _upgradeButton?.interactable = canUpgrade;
+            if (_upgradeButton != null) _upgradeButton.interactable = canUpgrade;
         }
 
         private void UpdateCardInfo()

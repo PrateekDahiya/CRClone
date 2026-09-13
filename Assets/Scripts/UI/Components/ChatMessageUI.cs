@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Network;
 using CRClone.UI.Screens;
 
@@ -36,7 +37,7 @@ namespace CRClone.UI.Components
             _onDonateClicked = onDonateClicked;
 
             var playerData = Services.Get<GameManager>().LocalPlayer;
-            bool isOwnMessage = playerData != null && message.senderId == playerData.playerId;
+            bool isOwnMessage = playerData != null && message.senderId == playerData.playerId.ToString();
 
             UpdateVisuals(isOwnMessage);
         }

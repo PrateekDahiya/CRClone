@@ -4,7 +4,9 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Network;
 using CRClone.UI.Animation;
+using CRClone.UI.Screens;
 
 namespace CRClone.UI
 {
@@ -117,7 +119,8 @@ namespace CRClone.UI
                 var oldTransition = _currentScreen.GetComponent<ScreenTransition>();
                 if (oldTransition == null) oldTransition = _currentScreen.AddComponent<ScreenTransition>();
 
-                yield return oldTransition.TransitionOut(_screenTransitionType);
+                oldTransition.TransitionOut(_screenTransitionType);
+                yield return null;
                 _currentScreen.SetActive(false);
             }
 
@@ -133,7 +136,8 @@ namespace CRClone.UI
                 newTransition.ResetTransform();
                 _currentScreen.SetActive(true);
 
-                yield return newTransition.TransitionIn(_screenTransitionType);
+                newTransition.TransitionIn(_screenTransitionType);
+                yield return null;
 
                 InitializeScreen(screenType, _currentScreen);
             }
@@ -157,7 +161,8 @@ namespace CRClone.UI
             if (transition == null) transition = modal.AddComponent<ScreenTransition>();
 
             transition.ResetTransform();
-            yield return transition.TransitionIn(_modalTransitionType);
+            transition.TransitionIn(_modalTransitionType);
+            yield return null;
 
             var modalController = modal.GetComponent<ModalController>();
             if (modalController != null)
@@ -165,7 +170,8 @@ namespace CRClone.UI
                 yield return new WaitUntil(() => modalController.IsClosed);
             }
 
-            yield return transition.TransitionOut(_modalTransitionType);
+            transition.TransitionOut(_modalTransitionType);
+            yield return null;
             Destroy(modal);
             onClosed?.Invoke();
         }
