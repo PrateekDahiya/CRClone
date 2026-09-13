@@ -279,7 +279,7 @@ namespace CRClone.Core
 
     // Supporting data classes
     [Serializable]
-    public class PlayerLocalData
+    public class PlayerLocalData : PlayerData
     {
         public long playerId;
         public string username;
@@ -334,6 +334,13 @@ namespace CRClone.Core
 
     public enum GraphicsQuality { Low, Medium, High, Ultra }
     public enum DeployMode { Tap, Drag, Both }
+
+    [Serializable]
+    public class PlayerData
+    {
+        public string playerName;
+        public List<CRClone.UI.Screens.BattleLogEntry> battleLog;
+    }
 
     [Serializable]
     public class BattleData
