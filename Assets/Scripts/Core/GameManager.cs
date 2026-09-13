@@ -225,7 +225,7 @@ namespace CRClone.Core
         private void InitializeBattle()
         {
             BattleSim = new BattleSimulation();
-            BattleSim.Initialize(Config.GetConfig(), CurrentBattle.Seed, CurrentBattle.Player1Deck, CurrentBattle.Player2Deck);
+            BattleSim.Initialize(Config.GetConfig(), CurrentBattle.seed, CurrentBattle.player1.deck.cardIds, CurrentBattle.player2.deck.cardIds);
             
             if (BattleView != null)
             {
@@ -260,6 +260,21 @@ namespace CRClone.Core
         public void ReturnToLobby()
         {
             ChangeState(GameState.Lobby);
+        }
+
+        // Additive compat: ReconnectionManager:159 calls
+        // `Services.Get<GameManager>()?.LoadScene(GameManager.GameScene.MainMenu, null)`.
+        // Namespace-level CRClone.Core.GameScene (GameTypes.cs) already exists with the same
+        // members; this nested mirror satisfies the `GameManager.GameScene` qualification
+        // without touching the consumer.
+        public enum GameScene { Boot, MainMenu, Lobby, DeckBuilder, Battle, Shop, Clan, Profile }
+
+        public void LoadScene(GameScene scene, Action onComplete)
+        {
+            LoadSceneAsync(scene);
+            // TODO: onComplete fires immediately, not after async load completes.
+            // Wire to OnSceneLoaded() when a completion hook exists.
+            onComplete?.Invoke();
         }
 
         public void QuitGame()
@@ -302,6 +317,25 @@ namespace CRClone.Core
         public int count;
         public int level;
         public int upgradeProgress;
+
+        // Numeric interop (count-based): allows `collection[id] >= n`, `> n`,
+        // `int x = collection[id]`, `collection[id] = 0`, `+= n`, `-= n`.
+        public static implicit operator int(CardCollectionEntry e) => e != null ? e.count : 0;
+        public static implicit operator CardCollectionEntry(int count) => new CardCollectionEntry { count = count };
+        public static bool operator >=(CardCollectionEntry a, int b) => (a != null ? a.count : 0) >= b;
+        public static bool operator <=(CardCollectionEntry a, int b) => (a != null ? a.count : 0) <= b;
+        public static bool operator >(CardCollectionEntry a, int b) => (a != null ? a.count : 0) > b;
+        public static bool operator <(CardCollectionEntry a, int b) => (a != null ? a.count : 0) < b;
+        public static CardCollectionEntry operator +(CardCollectionEntry a, int b)
+        {
+            if (a == null) return new CardCollectionEntry { count = b };
+            return new CardCollectionEntry { cardId = a.cardId, count = a.count + b, level = a.level, upgradeProgress = a.upgradeProgress };
+        }
+        public static CardCollectionEntry operator -(CardCollectionEntry a, int b)
+        {
+            if (a == null) return new CardCollectionEntry { count = -b };
+            return new CardCollectionEntry { cardId = a.cardId, count = a.count - b, level = a.level, upgradeProgress = a.upgradeProgress };
+        }
     }
 
     [Serializable]
@@ -340,6 +374,36 @@ namespace CRClone.Core
     {
         public string playerName;
         public List<CRClone.UI.Screens.BattleLogEntry> battleLog;
+        // Additive: every `playerData.<member>` consumed repo-wide (verified per usage site).
+        public string playerTag;
+        public int trophies;
+        public int bestTrophies;
+        public int gems;
+        public long gold;
+        public int level;
+        public long experience;
+        public int wins;
+        public int losses;
+        public int draws;
+        public int threeCrownWins;
+        public int favoriteCardId;
+        public Dictionary<int, CardCollectionEntry> collection = new();
+        public Dictionary<int, int> cardLevels = new();
+        public List<CRClone.UI.Components.ChestData> chestSlots = new();
+        public PlayerClanData clan;
+        // Tech-debt: Core -> UI reference (fully-qualified, no using added) to avoid touching consumers.
+        public CRClone.UI.Screens.ClanRole clanRole;
+    }
+
+    [Serializable]
+    public class PlayerClanData
+    {
+        public string name;
+        public string description;
+        public int trophyRequirement;
+        public int memberCount;
+        public List<CRClone.UI.Screens.ClanMember> members = new();
+        public List<CRClone.UI.Screens.ChatMessage> messages = new();
     }
 
     [Serializable]

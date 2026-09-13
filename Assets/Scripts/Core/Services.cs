@@ -224,6 +224,16 @@ namespace CRClone.Core
             public float duration;
             public bool wentOvertime;
             public long replayId;
+            // Additive: consumed by BattleResultScreen (:80 player1Name/player2Name,
+            // :150 rewards -> BattleRewardItemUI.Initialize(ChestReward),
+            // :164/:171 keyEvents -> BattleLogItemUI.Initialize(BattleLogEvent),
+            // :264 replayId, :279 battleId).
+            public string player1Name;
+            public string player2Name;
+            public long battleId;
+            public List<ChestReward> rewards;
+            // Tech-debt: Core -> UI reference (fully-qualified, no using added).
+            public List<CRClone.UI.Screens.BattleLogEvent> keyEvents;
         }
 
         public struct BattleTickEvent
