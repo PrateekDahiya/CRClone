@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0
@@ -12,7 +10,6 @@ services:
     ports:
       - "3307:3306"
     volumes:
-      - test_mysql_data:/var/lib/mysql
       - ./server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest"]
@@ -130,7 +127,6 @@ services:
       - e2e
 
 volumes:
-  test_mysql_data:
   test_redis_data:
 
 networks:

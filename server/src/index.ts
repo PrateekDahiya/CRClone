@@ -15,7 +15,7 @@ import { SeasonService } from './services/SeasonService';
 import { TournamentService } from './services/TournamentService';
 import { ReplayService } from './services/ReplayService';
 import { ConfigService, configService } from './services/ConfigService';
-import { migrationRunner } from './utils/MigrationRunner';
+import { MigrationRunner } from './utils/MigrationRunner';
 import { configHotReload } from './utils/ConfigHotReload';
 import { metricsCollector } from './utils/MetricsCollector';
 import { healthCheck, createHealthMiddleware } from './utils/HealthCheck';
@@ -287,7 +287,7 @@ class GameServer extends EventEmitter {
     logger.info('Database connected');
 
     // Run migrations
-    await migrationRunner.runMigrations();
+    await new MigrationRunner(this.database).runMigrations();
     logger.info('Migrations completed');
 
     // Initialize config service with hot-reload
