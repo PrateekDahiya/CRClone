@@ -9,8 +9,6 @@ services:
       MYSQL_PASSWORD: test
     ports:
       - "3307:3306"
-    volumes:
-      - ./server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptest"]
       interval: 10s
@@ -72,7 +70,7 @@ services:
       - crclone-test-network
     command: npm run dev
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 3

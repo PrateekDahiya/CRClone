@@ -6,7 +6,7 @@ import { NetworkClient, ConnectionManager } from './network/ConnectionManager';
 import { MessageHandler } from './network/MessageHandler';
 import { Matchmaker } from './matchmaking/Matchmaker';
 import { BattleServer } from './battle/BattleServer';
-import { Database } from './persistence/Database';
+import { Database, db } from './persistence/Database';
 import { PlayerService } from './services/PlayerService';
 import { ClanService } from './services/ClanService';
 import { ShopService } from './services/ShopService';
@@ -44,7 +44,7 @@ class GameServer extends EventEmitter {
   constructor() {
     super();
     this.httpServer = http.createServer();
-    this.wsServer = new WebSocket.Server({ server: this.httpServer });
+    this.wsServer = new WebSocket.Server({ port: config.wsPort });
     this.connectionManager = new ConnectionManager(this.wsServer);
     this.database = new Database();
     this.playerService = new PlayerService(this.database);
@@ -258,6 +258,10 @@ class GameServer extends EventEmitter {
         logger.info('WebSocket server closed');
       });
 
+      this.httpServer.close(() => {
+        logger.info('HTTP server closed');
+      });
+
       const shutdownTimeout = setTimeout(() => {
         logger.warn('Force shutting down active battles');
         this.activeBattles.forEach((battle) => battle.forceEnd());
@@ -284,6 +288,9 @@ class GameServer extends EventEmitter {
 
     // Initialize database
     await this.database.connect();
+    // The shared singleton backs the configService singleton (and any default-constructed repos),
+    // so it must be connected alongside the GameServer-owned database instance.
+    await db.connect();
     logger.info('Database connected');
 
     // Run migrations
@@ -302,10 +309,9 @@ class GameServer extends EventEmitter {
       logger.info(`HTTP server listening on port ${config.port}`);
     });
 
-    // Start WebSocket server
-    this.wsServer.on('listening', () => {
-      logger.info(`WebSocket server listening on port ${config.wsPort}`);
-    });
+    // Start WebSocket server (standalone listener on config.wsPort,
+    // already listening since construction)
+    logger.info(`WebSocket server listening on port ${config.wsPort}`);
 
     logger.info('Game server started');
   }
