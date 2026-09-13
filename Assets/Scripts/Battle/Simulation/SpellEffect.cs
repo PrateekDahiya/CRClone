@@ -13,7 +13,7 @@ namespace CRClone.Battle.Simulation
         public float Radius { get; private set; }
         public float Duration { get; private set; }
         public float RemainingTime { get; private set; }
-        public SpellType Type { get; private set; }
+        public new SpellType Type { get; private set; }
         public bool IsFinished => RemainingTime <= 0;
         public int Level { get; private set; }
 

@@ -21,7 +21,7 @@ namespace CRClone.Battle.Simulation
         public int ChainCount { get; private set; }
         public float ChainRange { get; private set; }
         public DamageType DamageType { get; private set; }
-        public bool IsDead { get; private set; }
+        public new bool IsDead { get; private set; }
 
         private Vector2 _startPosition;
         private float _travelTime = 0f;

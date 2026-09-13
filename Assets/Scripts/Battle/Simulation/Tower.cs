@@ -8,7 +8,7 @@ namespace CRClone.Battle.Simulation
 {
     public class Tower : Entity
     {
-        public TowerType Type { get; private set; }
+        public new TowerType Type { get; private set; }
         public bool IsActivated { get; private set; } // King Tower only
         public float AttackCooldown { get; private set; }
         public int Damage { get; private set; }
