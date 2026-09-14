@@ -83,7 +83,7 @@ namespace CRClone.Network
                 _pendingRequests.Clear();
 
                 Debug.Log($"[NetworkClient] Connected to server: {_serverUrl}");
-                EventBus.Raise(new NetworkConnectedEvent { serverAddress = _serverUrl });
+                EventBus.Raise(new EventBus.NetworkConnectedEvent { serverAddress = _serverUrl });
 
                 // Send auth
                 Send(new AuthMessage { token = _authToken });
@@ -212,24 +212,27 @@ namespace CRClone.Network
 
         private void HandleBattleFound(BattleFoundMessage msg)
         {
-            var battleData = new GameManager.BattleData
+            long.TryParse(msg?.battleId, out var parsedBattleId);
+            long.TryParse(msg?.player1?.playerId, out var parsedP1Id);
+            long.TryParse(msg?.player2?.playerId, out var parsedP2Id);
+            var battleData = new BattleData
             {
-                battleId = msg.battleId,
-                type = (GameManager.BattleType)msg.battleType,
+                battleId = parsedBattleId,
+                type = msg.battleType,
                 seed = msg.seed,
-                player1 = new GameManager.PlayerBattleInfo
+                player1 = new CRClone.Core.PlayerBattleInfo
                 {
-                    playerId = msg.player1.playerId,
+                    playerId = parsedP1Id,
                     username = msg.player1.username,
                     trophies = msg.player1.trophies,
-                    deck = new GameManager.DeckData { cardIds = msg.player1.deck }
+                    deck = new DeckData { cardIds = Array.ConvertAll(msg.player1.deck ?? Array.Empty<uint>(), id => (int)id) }
                 },
-                player2 = new GameManager.PlayerBattleInfo
+                player2 = new CRClone.Core.PlayerBattleInfo
                 {
-                    playerId = msg.player2.playerId,
+                    playerId = parsedP2Id,
                     username = msg.player2.username,
                     trophies = msg.player2.trophies,
-                    deck = new GameManager.DeckData { cardIds = msg.player2.deck }
+                    deck = new DeckData { cardIds = Array.ConvertAll(msg.player2.deck ?? Array.Empty<uint>(), id => (int)id) }
                 }
             };
 
@@ -243,7 +246,7 @@ namespace CRClone.Network
             _lastAckedTick = msg.tick;
             
             // Update local simulation with initial state
-            var reconcilEvent = new ReconciliationEvent
+            var reconcilEvent = new EventBus.ReconciliationEvent
             {
                 serverTick = msg.tick,
                 clientTick = _clientTick,
@@ -272,7 +275,7 @@ namespace CRClone.Network
             }
 
             // Forward to simulation for reconciliation
-            var reconcilEvent = new ReconciliationEvent
+            var reconcilEvent = new EventBus.ReconciliationEvent
             {
                 serverTick = msg.tick,
                 clientTick = _clientTick,
@@ -305,7 +308,7 @@ namespace CRClone.Network
         private void HandleReconcile(ReconcileMessage msg)
         {
             // Full state resync requested
-            var reconcilEvent = new ReconciliationEvent
+            var reconcilEvent = new EventBus.ReconciliationEvent
             {
                 serverTick = msg.tick,
                 clientTick = _clientTick,
@@ -458,9 +461,11 @@ namespace CRClone.Network
 
         private void HandleBattleEnd(BattleEndMessage msg)
         {
-            var result = new GameManager.BattleResult
+            long.TryParse(msg?.battleId, out var parsedBattleId);
+            long.TryParse(msg?.result?.replayId, out var parsedReplayId);
+            var result = new CRClone.Core.BattleResult
             {
-                battleId = msg.battleId,
+                battleId = parsedBattleId,
                 result = (BattleStatus)Enum.Parse(typeof(BattleStatus), msg.result.winner, true),
                 player1Crowns = msg.result.player1Crowns,
                 player2Crowns = msg.result.player2Crowns,
@@ -468,7 +473,7 @@ namespace CRClone.Network
                 player2TrophyChange = msg.result.player2TrophyChange,
                 duration = msg.result.duration,
                 wentOvertime = msg.result.wentOvertime,
-                replayId = msg.result.replayId
+                replayId = parsedReplayId
             };
 
             _reconnectionManager?.OnBattleEnd();
@@ -604,7 +609,7 @@ namespace CRClone.Network
             _isConnected = false;
             string reason = "Connection lost";
             Debug.Log($"[NetworkClient] Disconnected: {reason}");
-            EventBus.Raise(new NetworkDisconnectedEvent { reason = reason, wasClean = false });
+            EventBus.Raise(new EventBus.NetworkDisconnectedEvent { reason = reason, wasClean = false });
             _reconnectionManager?.ScheduleReconnect();
         }
 

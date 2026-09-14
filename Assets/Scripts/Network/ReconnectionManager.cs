@@ -35,16 +35,16 @@ namespace CRClone.Network
             }
 
             // Subscribe to network events
-            EventBus.On<NetworkDisconnectedEvent>(HandleDisconnected);
-            EventBus.On<NetworkConnectedEvent>(HandleConnected);
-            EventBus.On<ReconciliationEvent>(HandleReconciliation);
+            EventBus.On<EventBus.NetworkDisconnectedEvent>(HandleDisconnected);
+            EventBus.On<EventBus.NetworkConnectedEvent>(HandleConnected);
+            EventBus.On<EventBus.ReconciliationEvent>(HandleReconciliation);
         }
 
         private void OnDestroy()
         {
-            EventBus.Off<NetworkDisconnectedEvent>(HandleDisconnected);
-            EventBus.Off<NetworkConnectedEvent>(HandleConnected);
-            EventBus.Off<ReconciliationEvent>(HandleReconciliation);
+            EventBus.Off<EventBus.NetworkDisconnectedEvent>(HandleDisconnected);
+            EventBus.Off<EventBus.NetworkConnectedEvent>(HandleConnected);
+            EventBus.Off<EventBus.ReconciliationEvent>(HandleReconciliation);
         }
 
         public void SetCredentials(string serverUrl, string authToken)
@@ -149,7 +149,7 @@ namespace CRClone.Network
         private void ReturnToMainMenu()
         {
             // Notify UI to show disconnect screen
-            EventBus.Raise(new NetworkDisconnectedEvent 
+            EventBus.Raise(new EventBus.NetworkDisconnectedEvent 
             { 
                 reason = "Connection lost - returning to menu", 
                 wasClean = false 
