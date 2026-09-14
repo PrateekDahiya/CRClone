@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEngine;
 using CRClone.Data;
 using CRClone.Battle.Presentation;
