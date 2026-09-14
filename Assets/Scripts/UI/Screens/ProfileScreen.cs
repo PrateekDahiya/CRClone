@@ -160,7 +160,7 @@ namespace CRClone.UI.Screens
             {
                 playerData.playerName = newName;
                 _playerNameText.text = newName;
-                Services.Get<NetworkClient>().Send(new NetworkClient.ChangeNameRequest { newName = newName });
+                Services.Get<NetworkClient>().Send(new ChangeNameRequest { newName = newName });
             }
         }
     }
@@ -194,7 +194,7 @@ namespace CRClone.UI.Screens
                 _replayButton.onClick.RemoveAllListeners();
                 _replayButton.onClick.AddListener(() => 
                 {
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ReplayRequest { replayId = entry.replayId });
+                    Services.Get<NetworkClient>().Send(new ReplayRequest { replayId = entry.replayId });
                 });
             }
         }

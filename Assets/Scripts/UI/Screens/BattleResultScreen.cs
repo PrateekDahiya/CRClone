@@ -265,7 +265,7 @@ namespace CRClone.UI.Screens
         private void OnWatchReplay()
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            Services.Get<NetworkClient>().Send(new NetworkClient.ReplayRequest { replayId = _battleEvent.replayId });
+            Services.Get<NetworkClient>().Send(new ReplayRequest { replayId = _battleEvent.replayId });
         }
 
         private void OnShare()
@@ -279,7 +279,7 @@ namespace CRClone.UI.Screens
         private void OnRematch()
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            Services.Get<NetworkClient>().Send(new NetworkClient.RematchRequest { battleId = _battleEvent.battleId });
+            Services.Get<NetworkClient>().Send(new RematchRequest { battleId = _battleEvent.battleId });
         }
 
         private void OnBackToLobby()

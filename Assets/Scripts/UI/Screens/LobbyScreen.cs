@@ -108,7 +108,7 @@ namespace CRClone.UI.Screens
         private void StartMatchmaking(CRClone.Network.BattleType type)
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            Services.Get<NetworkClient>().Send(new NetworkClient.MatchmakingRequest { battleType = type });
+            Services.Get<NetworkClient>().Send(new MatchmakingRequest { battleType = type });
         }
 
         private void UpdatePlayerInfo()

@@ -277,7 +277,7 @@ namespace CRClone.UI
 
         private void StartMatchmaking(CRClone.Network.BattleType type)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.MatchmakingRequest { battleType = type });
+            Services.Get<NetworkClient>().Send(new MatchmakingRequest { battleType = type });
             Services.Get<GameManager>().ChangeState(GameState.Matchmaking);
         }
 
