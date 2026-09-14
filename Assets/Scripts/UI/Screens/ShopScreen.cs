@@ -265,7 +265,7 @@ namespace CRClone.UI.Screens
             Services.Get<NetworkClient>().Send(new ShopPurchaseRequest 
             { 
                 offerId = offer.id, 
-                currency = offer.costType.ToString().ToLower() 
+                currencyType = offer.costType.ToString().ToLower() 
             });
         }
 

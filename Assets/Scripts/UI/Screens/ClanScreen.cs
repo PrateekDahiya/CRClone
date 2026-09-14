@@ -283,7 +283,7 @@ namespace CRClone.UI.Screens
 
             ScrollToBottom();
 
-            Services.Get<NetworkClient>().Send(new ClanChatMessage { message = message });
+            Services.Get<NetworkClient>().Send(new ClanChatMessage { content = message });
         }
 
         private void OnDonateRequest()

@@ -398,65 +398,74 @@ namespace CRClone.Network
 
     // Replay (consumed by ChatMessageUI, BattleResultScreen, ProfileScreen)
     [ProtoContract]
-    public class ReplayRequest
+    public class ReplayRequest : NetworkMessage
     {
+        public ReplayRequest() { type = "replay"; }
         [ProtoMember(1)] public long replayId { get; set; }
         [ProtoMember(2)] public string replayCode { get; set; }
     }
 
     // Battle rematch (consumed by BattleResultScreen)
     [ProtoContract]
-    public class RematchRequest
+    public class RematchRequest : NetworkMessage
     {
+        public RematchRequest() { type = "matchmaking"; }
         [ProtoMember(1)] public long battleId { get; set; }
     }
 
     // Player rename (consumed by ProfileScreen)
     [ProtoContract]
-    public class ChangeNameRequest
+    public class ChangeNameRequest : NetworkMessage
     {
+        public ChangeNameRequest() { type = "player"; }
         [ProtoMember(1)] public string newName { get; set; }
     }
 
     // Shop (consumed by ShopScreen)
     [ProtoContract]
-    public class ShopPurchaseRequest
+    public class ShopPurchaseRequest : NetworkMessage
     {
+        public ShopPurchaseRequest() { type = "shop"; }
         [ProtoMember(1)] public string offerId;
-        [ProtoMember(2)] public string currency;
+        [ProtoMember(2)] public string currencyType;
     }
 
     // Clan (consumed by ClanScreen)
     [ProtoContract]
-    public class ClanChatMessage
+    public class ClanChatMessage : NetworkMessage
     {
-        [ProtoMember(1)] public string message { get; set; }
+        public ClanChatMessage() { type = "clan"; }
+        [ProtoMember(1)] public string content { get; set; }
     }
 
     [ProtoContract]
-    public class ClanDonationRequest
+    public class ClanDonationRequest : NetworkMessage
     {
+        public ClanDonationRequest() { type = "clan"; }
         [ProtoMember(1)] public int cardId { get; set; }
         [ProtoMember(2)] public int count { get; set; }
     }
 
     [ProtoContract]
-    public class ClanDonate
+    public class ClanDonate : NetworkMessage
     {
+        public ClanDonate() { type = "clan"; }
         [ProtoMember(1)] public int cardId { get; set; }
         [ProtoMember(2)] public string recipientId { get; set; }
         [ProtoMember(3)] public int count { get; set; }
     }
 
     [ProtoContract]
-    public class ClanWarAction
+    public class ClanWarAction : NetworkMessage
     {
+        public ClanWarAction() { type = "clan"; }
         [ProtoMember(1)] public string action { get; set; }
     }
 
     [ProtoContract]
-    public class ClanMemberAction
+    public class ClanMemberAction : NetworkMessage
     {
+        public ClanMemberAction() { type = "clan"; }
         [ProtoMember(1)] public string targetPlayerId { get; set; }
         [ProtoMember(2)] public string action { get; set; }
     }
