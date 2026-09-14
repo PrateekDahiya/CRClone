@@ -401,7 +401,7 @@ namespace CRClone.UI
                     }
                     avgElixir = cardCount > 0 ? avgElixir / cardCount : 0f;
 
-                    playerData.activeDeck = new GameManager.DeckData
+                    playerData.activeDeck = new DeckData
                     {
                         cardIds = (int[])_currentDeck.Clone(),
                         avgElixir = avgElixir,
