@@ -116,7 +116,7 @@ SpriteRenderer:
   m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!60 &211698849734928130
+--- !u!58 &211698849734928130
 CircleCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -230,7 +230,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 639629472851746783}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!109 &922722223825683693
+--- !u!120 &922722223825683693
 LineRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

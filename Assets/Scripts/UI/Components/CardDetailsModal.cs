@@ -72,10 +72,10 @@ namespace CRClone.UI.Components
             if (_modalCanvasGroup == null) _modalCanvasGroup = GetComponent<CanvasGroup>();
             if (_modalRect == null) _modalRect = GetComponent<RectTransform>();
 
-            _closeButton?.onClick.AddListener(Close);
-            _addToDeckButton?.onClick.AddListener(AddToDeck);
-            _upgradeButton?.onClick.AddListener(UpgradeCard);
-            _viewInShopButton?.onClick.AddListener(ViewInShop);
+            _closeButton.OrNull()?.onClick.AddListener(Close);
+            _addToDeckButton.OrNull()?.onClick.AddListener(AddToDeck);
+            _upgradeButton.OrNull()?.onClick.AddListener(UpgradeCard);
+            _viewInShopButton.OrNull()?.onClick.AddListener(ViewInShop);
 
             UpdateCardInfo();
             UpdateStats();
@@ -90,7 +90,7 @@ namespace CRClone.UI.Components
                              playerData.gold >= _currentStats.goldCost &&
                              _currentLevel < 14;
 
-            _upgradeButton?.gameObject.SetActive(canUpgrade);
+            _upgradeButton.OrNull()?.gameObject.SetActive(canUpgrade);
             if (_upgradeButton != null) _upgradeButton.interactable = canUpgrade;
         }
 

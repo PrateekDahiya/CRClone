@@ -77,7 +77,7 @@ SpriteRenderer:
   m_WasSpriteAssigned: 0
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!110 &140415089283616275
+--- !u!96 &140415089283616275
 TrailRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -139,7 +139,7 @@ TrailRenderer:
     m_PostInfinity: 2
     m_RotationOrder: 4
   m_Autodestruct: 0
---- !u!60 &252738265124150668
+--- !u!58 &252738265124150668
 CircleCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -205,7 +205,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 317826405846291335}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!100 &818640748455627514
+--- !u!198 &818640748455627514
 ParticleSystem:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -254,7 +254,7 @@ ParticleSystem:
     m_Enabled: 1
     m_ShapeType: 0
     m_Radius: 0.5
---- !u!26 &528487589869434565
+--- !u!199 &528487589869434565
 ParticleSystemRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

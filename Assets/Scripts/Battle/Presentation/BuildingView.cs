@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Battle.Simulation;
+using CRClone.Core;
 
 namespace CRClone.Battle.Presentation
 {
@@ -53,7 +54,7 @@ namespace CRClone.Battle.Presentation
         {
             gameObject.SetActive(true);
             _healthBar.gameObject.SetActive(true);
-            _animator?.Rebind();
+            _animator.OrNull()?.Rebind();
         }
 
         public void OnDespawn() { }

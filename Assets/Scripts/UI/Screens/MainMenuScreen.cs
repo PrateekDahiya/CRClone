@@ -98,21 +98,21 @@ namespace CRClone.UI.Screens
 
         private void SetupTopBar()
         {
-            _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
+            _settingsButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
         }
 
         private void SetupBattleButton()
         {
-            _battleButton?.onClick.AddListener(OnBattleButtonClicked);
+            _battleButton.OrNull()?.onClick.AddListener(OnBattleButtonClicked);
         }
 
         private void SetupBattleModeButtons()
         {
-            _battle1v1Button?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
-            _battle2v2Button?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
-            _tournamentButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
-            _friendlyButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
-            _practiceButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
+            _battle1v1Button.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
+            _battle2v2Button.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
+            _tournamentButton.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
+            _friendlyButton.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
+            _practiceButton.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
         }
 
         private void SetupChestSlots()
@@ -139,19 +139,19 @@ namespace CRClone.UI.Screens
         {
             if (_newsBanner != null)
             {
-                _newsDismissButton?.onClick.AddListener(() => _newsBanner.SetActive(false));
+                _newsDismissButton.OrNull()?.onClick.AddListener(() => _newsBanner.SetActive(false));
                 _newsBanner.SetActive(false);
             }
         }
 
         private void SetupBottomNavigation()
         {
-            _eventsNavButton?.onClick.AddListener(() => NavigateTo(ScreenType.QuestLog));
-            _clanNavButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Clan));
-            _shopNavButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Shop));
-            _cardsNavButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.DeckBuilder));
-            _battleNavButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Lobby));
-            _profileNavButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Profile));
+            _eventsNavButton.OrNull()?.onClick.AddListener(() => NavigateTo(ScreenType.QuestLog));
+            _clanNavButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Clan));
+            _shopNavButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Shop));
+            _cardsNavButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.DeckBuilder));
+            _battleNavButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Lobby));
+            _profileNavButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Profile));
 
             UpdateNavHighlight(ScreenType.Lobby);
         }

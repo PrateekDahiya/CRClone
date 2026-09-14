@@ -32,11 +32,11 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
-            _resumeButton?.onClick.AddListener(OnResumeClicked);
-            _settingsButton?.onClick.AddListener(OnSettingsClicked);
-            _concedeButton?.onClick.AddListener(OnConcedeClicked);
-            _quitButton?.onClick.AddListener(OnQuitClicked);
-            _continueButton?.onClick.AddListener(OnContinueClicked);
+            _resumeButton.OrNull()?.onClick.AddListener(OnResumeClicked);
+            _settingsButton.OrNull()?.onClick.AddListener(OnSettingsClicked);
+            _concedeButton.OrNull()?.onClick.AddListener(OnConcedeClicked);
+            _quitButton.OrNull()?.onClick.AddListener(OnQuitClicked);
+            _continueButton.OrNull()?.onClick.AddListener(OnContinueClicked);
 
             if (_pauseMenu != null) _pauseMenu.SetActive(false);
             if (_battleEndOverlay != null) _battleEndOverlay.SetActive(false);
@@ -64,7 +64,7 @@ namespace CRClone.UI.Screens
             if (_battleEnded) return;
             
             _isPaused = true;
-            _pauseMenu?.SetActive(true);
+            _pauseMenu.OrNull()?.SetActive(true);
             Time.timeScale = 0f;
             UISoundPlayer.Instance?.PlayScreenOpen();
         }
@@ -72,14 +72,14 @@ namespace CRClone.UI.Screens
         public void HidePauseMenu()
         {
             _isPaused = false;
-            _pauseMenu?.SetActive(false);
+            _pauseMenu.OrNull()?.SetActive(false);
             Time.timeScale = 1f;
         }
 
         public void ShowBattleEnd()
         {
             _battleEnded = true;
-            _battleEndOverlay?.SetActive(true);
+            _battleEndOverlay.OrNull()?.SetActive(true);
             Time.timeScale = 1f;
         }
 
@@ -111,7 +111,7 @@ namespace CRClone.UI.Screens
         private void OnContinueClicked()
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            _battleEndOverlay?.SetActive(false);
+            _battleEndOverlay.OrNull()?.SetActive(false);
             Services.Get<GameManager>().ChangeState(GameState.Lobby);
         }
 

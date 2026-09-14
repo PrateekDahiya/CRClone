@@ -73,9 +73,9 @@ namespace CRClone.UI.Components
             bool canDemote = canManage && !isSelf && _member.role == ClanRole.Elder;
             bool canKick = canManage && !isSelf && _member.role != ClanRole.Leader && _member.role != ClanRole.CoLeader;
 
-            _promoteButton?.gameObject.SetActive(showActions && _member.role == ClanRole.Member);
-            _demoteButton?.gameObject.SetActive(canDemote);
-            _kickButton?.gameObject.SetActive(canKick);
+            _promoteButton.OrNull()?.gameObject.SetActive(showActions && _member.role == ClanRole.Member);
+            _demoteButton.OrNull()?.gameObject.SetActive(canDemote);
+            _kickButton.OrNull()?.gameObject.SetActive(canKick);
 
             if (_promoteButton != null)
             {

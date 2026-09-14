@@ -45,8 +45,8 @@ namespace CRClone.UI.Screens
 
         private void SetupUI()
         {
-            _continueButton?.onClick.AddListener(OnContinue);
-            _openAnotherButton?.onClick.AddListener(OnOpenAnother);
+            _continueButton.OrNull()?.onClick.AddListener(OnContinue);
+            _openAnotherButton.OrNull()?.onClick.AddListener(OnOpenAnother);
 
             if (_chestNameText != null)
             {

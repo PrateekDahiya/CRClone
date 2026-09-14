@@ -60,7 +60,11 @@ namespace CRClone.Core
         {
             if (_autoStart)
             {
-                ChangeState(_initialState);
+                // CurrentState defaults to GameState.Boot, which is also the default
+                // _initialState, so a plain ChangeState() would early-return on the
+                // equality guard and the game would never leave Boot. Force the first
+                // transition so HandleStateEnter actually runs.
+                EnterState(_initialState);
             }
         }
 
@@ -115,7 +119,15 @@ namespace CRClone.Core
         public void ChangeState(GameState newState)
         {
             if (CurrentState == newState) return;
+            EnterState(newState);
+        }
 
+        /// <summary>
+        /// Runs a state transition unconditionally, bypassing the no-op guard in
+        /// <see cref="ChangeState"/>. Used for the initial transition out of Boot.
+        /// </summary>
+        private void EnterState(GameState newState)
+        {
             var previousState = CurrentState;
             CurrentState = newState;
 
@@ -182,6 +194,15 @@ namespace CRClone.Core
             _targetStateAfterLoad = stateAfterLoad ?? CurrentState;
             string sceneName = scene.ToString();
 
+            // Re-entering a state whose scene is already active (Boot -> MainMenu ->
+            // MainMenu) would reload it pointlessly and restart the UI. Just settle
+            // into the target state instead.
+            if (SceneManager.GetActiveScene().name == sceneName)
+            {
+                OnSceneLoaded();
+                return;
+            }
+
             StartCoroutine(LoadSceneCoroutine(sceneName));
         }
 
@@ -219,6 +240,14 @@ namespace CRClone.Core
                         BattleView.Initialize(BattleSim);
                     }
                     break;
+            }
+
+            // Apply the state the load was staged for (Boot loads the MainMenu scene
+            // and then hands over to GameState.MainMenu). Without this the game stayed
+            // in Boot forever and no screen was ever raised.
+            if (_targetStateAfterLoad != CurrentState)
+            {
+                ChangeState(_targetStateAfterLoad);
             }
         }
 

@@ -66,9 +66,9 @@ namespace CRClone.UI.Components
             switch (_message.type)
             {
                 case ChatMessage.MessageType.DonationRequest:
-                    _messageText?.gameObject.SetActive(false);
-                    _donationRequestContainer?.SetActive(true);
-                    _replayLinkContainer?.SetActive(false);
+                    _messageText.OrNull()?.gameObject.SetActive(false);
+                    _donationRequestContainer.OrNull()?.SetActive(true);
+                    _replayLinkContainer.OrNull()?.SetActive(false);
 
                     if (_donationCardNameText != null && _message.donationCardId.HasValue)
                     {
@@ -95,9 +95,9 @@ namespace CRClone.UI.Components
                     break;
 
                 case ChatMessage.MessageType.ReplayShare:
-                    _messageText?.gameObject.SetActive(false);
-                    _donationRequestContainer?.SetActive(false);
-                    _replayLinkContainer?.SetActive(true);
+                    _messageText.OrNull()?.gameObject.SetActive(false);
+                    _donationRequestContainer.OrNull()?.SetActive(false);
+                    _replayLinkContainer.OrNull()?.SetActive(true);
 
                     if (_replayLinkText != null)
                     {
@@ -118,9 +118,9 @@ namespace CRClone.UI.Components
                     break;
 
                 default:
-                    _messageText?.gameObject.SetActive(true);
-                    _donationRequestContainer?.SetActive(false);
-                    _replayLinkContainer?.SetActive(false);
+                    _messageText.OrNull()?.gameObject.SetActive(true);
+                    _donationRequestContainer.OrNull()?.SetActive(false);
+                    _replayLinkContainer.OrNull()?.SetActive(false);
 
                     if (_messageText != null)
                     {

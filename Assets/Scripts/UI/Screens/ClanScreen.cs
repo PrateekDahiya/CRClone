@@ -76,18 +76,18 @@ namespace CRClone.UI.Screens
         {
             if (_isInitialized) return;
 
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
-            _chatTab?.onClick.AddListener(() => SwitchTab(ClanTab.Chat));
-            _membersTab?.onClick.AddListener(() => SwitchTab(ClanTab.Members));
-            _warTab?.onClick.AddListener(() => SwitchTab(ClanTab.War));
-            _capitalTab?.onClick.AddListener(() => SwitchTab(ClanTab.Capital));
-            _settingsTab?.onClick.AddListener(() => SwitchTab(ClanTab.Settings));
+            _chatTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Chat));
+            _membersTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Members));
+            _warTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.War));
+            _capitalTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Capital));
+            _settingsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Settings));
 
-            _sendButton?.onClick.AddListener(OnSendMessage);
-            _donateRequestButton?.onClick.AddListener(OnDonateRequest);
-            _warParticipateButton?.onClick.AddListener(OnWarParticipate);
-            _leaveClanButton?.onClick.AddListener(OnLeaveClan);
+            _sendButton.OrNull()?.onClick.AddListener(OnSendMessage);
+            _donateRequestButton.OrNull()?.onClick.AddListener(OnDonateRequest);
+            _warParticipateButton.OrNull()?.onClick.AddListener(OnWarParticipate);
+            _leaveClanButton.OrNull()?.onClick.AddListener(OnLeaveClan);
 
             LoadClanData();
 
@@ -132,11 +132,11 @@ namespace CRClone.UI.Screens
 
         private void ShowTabContent(ClanTab tab)
         {
-            _chatContent?.gameObject.SetActive(tab == ClanTab.Chat);
-            _membersContent?.gameObject.SetActive(tab == ClanTab.Members);
-            _warContent?.gameObject.SetActive(tab == ClanTab.War);
-            _capitalContent?.gameObject.SetActive(tab == ClanTab.Capital);
-            _settingsContent?.gameObject.SetActive(tab == ClanTab.Settings);
+            _chatContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Chat);
+            _membersContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Members);
+            _warContent.OrNull()?.gameObject.SetActive(tab == ClanTab.War);
+            _capitalContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Capital);
+            _settingsContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Settings);
         }
 
         private void RefreshCurrentTab()
@@ -248,7 +248,7 @@ namespace CRClone.UI.Screens
 
         private void ScrollToBottom()
         {
-            var scrollRect = _chatMessagesContainer?.GetComponentInParent<ScrollRect>();
+            var scrollRect = _chatMessagesContainer.OrNull()?.GetComponentInParent<ScrollRect>();
             if (scrollRect != null)
             {
                 Canvas.ForceUpdateCanvases();
@@ -258,7 +258,7 @@ namespace CRClone.UI.Screens
 
         private void OnSendMessage()
         {
-            if (string.IsNullOrWhiteSpace(_chatInput?.text)) return;
+            if (string.IsNullOrWhiteSpace(_chatInput.OrNull()?.text)) return;
 
             string message = _chatInput.text;
             _chatInput.text = "";

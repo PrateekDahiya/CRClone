@@ -35,7 +35,7 @@ namespace CRClone.UI.Components
         public void Initialize(int index)
         {
             _slotIndex = index;
-            _slotButton?.onClick.AddListener(OnSlotClicked);
+            _slotButton.OrNull()?.onClick.AddListener(OnSlotClicked);
             SetEmpty();
         }
 
@@ -51,8 +51,8 @@ namespace CRClone.UI.Components
             }
 
             gameObject.SetActive(true);
-            _emptyState?.SetActive(false);
-            _chestImage?.gameObject.SetActive(true);
+            _emptyState.OrNull()?.SetActive(false);
+            _chestImage.OrNull()?.gameObject.SetActive(true);
 
             if (_chestImage != null && chestData.chestTypeId < _chestSprites.Length)
             {
@@ -73,21 +73,21 @@ namespace CRClone.UI.Components
         {
             _chestData = null;
             StopTimers();
-            _chestImage?.gameObject.SetActive(false);
-            _timerText?.gameObject.SetActive(false);
-            _progressFill?.gameObject.SetActive(false);
-            _lockIcon?.SetActive(false);
-            _readyIcon?.SetActive(false);
-            _emptyState?.SetActive(true);
+            _chestImage.OrNull()?.gameObject.SetActive(false);
+            _timerText.OrNull()?.gameObject.SetActive(false);
+            _progressFill.OrNull()?.gameObject.SetActive(false);
+            _lockIcon.OrNull()?.SetActive(false);
+            _readyIcon.OrNull()?.SetActive(false);
+            _emptyState.OrNull()?.SetActive(true);
         }
 
         private void StartUnlockTimer(DateTime unlockTime)
         {
             StopTimers();
-            _lockIcon?.SetActive(true);
-            _readyIcon?.SetActive(false);
-            _progressFill?.gameObject.SetActive(true);
-            _timerText?.gameObject.SetActive(true);
+            _lockIcon.OrNull()?.SetActive(true);
+            _readyIcon.OrNull()?.SetActive(false);
+            _progressFill.OrNull()?.gameObject.SetActive(true);
+            _timerText.OrNull()?.gameObject.SetActive(true);
 
             _timerCoroutine = StartCoroutine(UnlockTimerRoutine(unlockTime));
         }
@@ -122,10 +122,10 @@ namespace CRClone.UI.Components
         {
             StopTimers();
             _isUnlocked = true;
-            _lockIcon?.SetActive(false);
-            _readyIcon?.SetActive(true);
-            _progressFill?.gameObject.SetActive(false);
-            _timerText?.gameObject.SetActive(false);
+            _lockIcon.OrNull()?.SetActive(false);
+            _readyIcon.OrNull()?.SetActive(true);
+            _progressFill.OrNull()?.gameObject.SetActive(false);
+            _timerText.OrNull()?.gameObject.SetActive(false);
 
             if (_unlockParticles != null)
             {

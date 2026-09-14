@@ -18,26 +18,26 @@ namespace CRClone.UI.Components
 
         private void Awake()
         {
-            _confirmButton?.onClick.AddListener(OnConfirm);
-            _cancelButton?.onClick.AddListener(OnCancel);
-            _nameInput?.onValueChanged.AddListener(OnNameInputChanged);
+            _confirmButton.OrNull()?.onClick.AddListener(OnConfirm);
+            _cancelButton.OrNull()?.onClick.AddListener(OnCancel);
+            _nameInput.OrNull()?.onValueChanged.AddListener(OnNameInputChanged);
         }
 
         public void Initialize(Action<string> onNameChanged)
         {
             _onNameChanged = onNameChanged;
-            _errorText?.gameObject.SetActive(false);
+            _errorText.OrNull()?.gameObject.SetActive(false);
             if (_nameInput != null) _nameInput.text = "";
         }
 
         private void OnNameInputChanged(string text)
         {
-            _errorText?.gameObject.SetActive(false);
+            _errorText.OrNull()?.gameObject.SetActive(false);
         }
 
         private void OnConfirm()
         {
-            string newName = _nameInput?.text?.Trim() ?? "";
+            string newName = _nameInput.OrNull()?.text?.Trim() ?? "";
 
             if (string.IsNullOrEmpty(newName))
             {

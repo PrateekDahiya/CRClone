@@ -65,13 +65,13 @@ namespace CRClone.UI.Screens
         {
             if (_isInitialized) return;
 
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
-            _dailyTab?.onClick.AddListener(() => SwitchTab(ShopTab.Daily));
-            _specialTab?.onClick.AddListener(() => SwitchTab(ShopTab.Special));
-            _chestsTab?.onClick.AddListener(() => SwitchTab(ShopTab.Chests));
-            _gemsTab?.onClick.AddListener(() => SwitchTab(ShopTab.Gems));
-            _wildCardsTab?.onClick.AddListener(() => SwitchTab(ShopTab.WildCards));
+            _dailyTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Daily));
+            _specialTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Special));
+            _chestsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Chests));
+            _gemsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Gems));
+            _wildCardsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.WildCards));
 
             LoadOffers();
             UpdateCurrency();
@@ -121,11 +121,11 @@ namespace CRClone.UI.Screens
 
         private void ShowTabContent(ShopTab tab)
         {
-            _dailyContent?.gameObject.SetActive(tab == ShopTab.Daily);
-            _specialContent?.gameObject.SetActive(tab == ShopTab.Special);
-            _chestsContent?.gameObject.SetActive(tab == ShopTab.Chests);
-            _gemsContent?.gameObject.SetActive(tab == ShopTab.Gems);
-            _wildCardsContent?.gameObject.SetActive(tab == ShopTab.WildCards);
+            _dailyContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Daily);
+            _specialContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Special);
+            _chestsContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Chests);
+            _gemsContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Gems);
+            _wildCardsContent.OrNull()?.gameObject.SetActive(tab == ShopTab.WildCards);
         }
 
         private void LoadOffers()

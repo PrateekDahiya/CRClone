@@ -88,16 +88,16 @@ namespace CRClone.UI
                 _typeFilter.onValueChanged.AddListener(OnTypeFilterChanged);
             }
 
-            _searchInput?.onValueChanged.AddListener(OnSearchChanged);
-            _showUnownedToggle?.onValueChanged.AddListener(OnShowUnownedChanged);
+            _searchInput.OrNull()?.onValueChanged.AddListener(OnSearchChanged);
+            _showUnownedToggle.OrNull()?.onValueChanged.AddListener(OnShowUnownedChanged);
         }
 
         private void SetupActionButtons()
         {
-            _saveButton?.onClick.AddListener(OnSaveClicked);
-            _cancelButton?.onClick.AddListener(OnCancelClicked);
-            _copyLinkButton?.onClick.AddListener(OnCopyLinkClicked);
-            _clearDeckButton?.onClick.AddListener(OnClearDeckClicked);
+            _saveButton.OrNull()?.onClick.AddListener(OnSaveClicked);
+            _cancelButton.OrNull()?.onClick.AddListener(OnCancelClicked);
+            _copyLinkButton.OrNull()?.onClick.AddListener(OnCopyLinkClicked);
+            _clearDeckButton.OrNull()?.onClick.AddListener(OnClearDeckClicked);
         }
 
         public void Initialize()
@@ -499,7 +499,7 @@ namespace CRClone.UI
         {
             SlotIndex = index;
             _deckBuilder = builder;
-            _removeButton?.onClick.AddListener(() => _deckBuilder.RemoveCardFromSlot(SlotIndex));
+            _removeButton.OrNull()?.onClick.AddListener(() => _deckBuilder.RemoveCardFromSlot(SlotIndex));
             SetHighlight(false, false);
         }
 
@@ -525,8 +525,8 @@ namespace CRClone.UI
 
         public void SetHighlight(bool valid, bool invalid)
         {
-            _highlightValid?.SetActive(valid);
-            _highlightInvalid?.SetActive(invalid);
+            _highlightValid.OrNull()?.SetActive(valid);
+            _highlightInvalid.OrNull()?.SetActive(invalid);
         }
 
         public bool CanAcceptCard(CardData cardData)

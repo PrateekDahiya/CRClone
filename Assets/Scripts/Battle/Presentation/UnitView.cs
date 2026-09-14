@@ -101,7 +101,7 @@ namespace CRClone.Battle.Presentation
             _spriteRenderer.enabled = true;
             _healthBar.gameObject.SetActive(true);
             _selectionRing.SetActive(false);
-            _animator?.Rebind();
+            _animator.OrNull()?.Rebind();
         }
 
         public void OnDespawn()

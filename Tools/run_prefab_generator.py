@@ -42,6 +42,24 @@ PRESENT = "Assets/Scripts/Battle/Presentation"
 
 LAYERS = {"Unit": 8, "Building": 9, "Spell": 10, "Projectile": 11, "Tower": 12}
 
+# Unity YAML class IDs. The `!u!<id>` tag is authoritative -- the type name that
+# follows it is only a comment -- so a wrong id silently deserialises into the
+# wrong component, and an id that maps to an abstract class (110 BaseAnimationTrack,
+# formerly used here for TrailRenderer) segfaults the importer outright.
+# Verified against Unity 2022.3.20f1 via PrefabUtility.SaveAsPrefabAsset round-trip.
+CID_GAME_OBJECT = 1
+CID_TRANSFORM = 4
+CID_RIGIDBODY_2D = 50
+CID_CIRCLE_COLLIDER_2D = 58
+CID_BOX_COLLIDER_2D = 61
+CID_ANIMATOR = 95
+CID_TRAIL_RENDERER = 96
+CID_MONO_BEHAVIOUR = 114
+CID_LINE_RENDERER = 120
+CID_PARTICLE_SYSTEM = 198
+CID_PARTICLE_SYSTEM_RENDERER = 199
+CID_SPRITE_RENDERER = 212
+
 SCRIPTS = {
     "UnitView": f"{PRESENT}/UnitView.cs",
     "BuildingView": f"{PRESENT}/BuildingView.cs",
@@ -178,7 +196,7 @@ class Prefab:
 
     def finalize_transforms(self, specs):
         for i, (fid, class_id, kind, body) in enumerate(self.objs):
-            if class_id == 4 and fid in specs:
+            if class_id == CID_TRANSFORM and fid in specs:
                 s = specs[fid]
                 self.objs[i] = (fid, class_id, kind,
                                 tr_block(self, fid, s["go"], s["pos"], s["scale"],
@@ -388,8 +406,8 @@ class Ctx:
         self.tr_specs = {}  # tr fid -> dict(go, pos, scale, father, kids)
 
     def go(self, name, tag, layer, active=True, pos=(0, 0, 0), scale=(1, 1, 1), father=None):
-        go = self.p.add(1, f"go:{name}", None)
-        tr = self.p.add(4, f"tr:{name}", None)
+        go = self.p.add(CID_GAME_OBJECT, f"go:{name}", None)
+        tr = self.p.add(CID_TRANSFORM, f"tr:{name}", None)
         self.p.objs[-2] = (go, 1, f"go:{name}",
                            go_block(self.p, go, name, tag, layer, active))
         self.p.objs[-1] = (tr, 4, f"tr:{name}",
@@ -408,7 +426,7 @@ class Ctx:
         return self.go(name, tag, layer, active, pos, scale, father=parent_tr)
 
     def mb(self, go, script, fields):
-        return self.p.add(114, f"mb:{script}", mb_block(self.p, go, script, fields))
+        return self.p.add(CID_MONO_BEHAVIOUR, f"mb:{script}", mb_block(self.p, go, script, fields))
 
 
 def add_healthbar(ctx, parent_tr):
@@ -423,13 +441,13 @@ def build_unit(card):
     ctx = Ctx(p)
     go, tr = ctx.go(p.name, "Unit", LAYERS["Unit"])
     uv = ctx.mb(go, "UnitView", [])
-    an = p.add(95, "animator", animator_block(go))
-    sr = p.add(212, "sprite", sprite_block(go, 10))
-    p.add(60, "collider", circle_collider(go, 0.5))
-    p.add(50, "rb", rigidbody2d(go))
+    an = p.add(CID_ANIMATOR, "animator", animator_block(go))
+    sr = p.add(CID_SPRITE_RENDERER, "sprite", sprite_block(go, 10))
+    p.add(CID_CIRCLE_COLLIDER_2D, "collider", circle_collider(go, 0.5))
+    p.add(CID_RIGIDBODY_2D, "rb", rigidbody2d(go))
     hb_go, _hb = add_healthbar(ctx, tr)
     ring_go, ring_tr = ctx.child(tr, "SelectionRing", active=False)
-    lr = p.add(109, "line", line_block(ring_go))
+    lr = p.add(CID_LINE_RENDERER, "line", line_block(ring_go))
     ctx.mb(ring_go, "SelectionRing", [("_lineRenderer", ref(lr)), ("_radius", "0.6"),
                                       ("_segments", "32"), ("_color", YELLOW),
                                       ("_width", "0.05"), ("_pulseSpeed", "3"), ("_pulseAmount", "0.2")])
@@ -452,10 +470,10 @@ def build_building(card):
     p = Prefab(f"Building_{sanitize_prefab_name(card['cardName'])}", "Building", LAYERS["Building"])
     ctx = Ctx(p)
     go, tr = ctx.go(p.name, "Building", LAYERS["Building"])
-    an = p.add(95, "animator", animator_block(go))
-    sr = p.add(212, "sprite", sprite_block(go, 5))
-    p.add(59, "collider", box_collider(go, 2, 2))
-    p.add(50, "rb", rigidbody2d(go))
+    an = p.add(CID_ANIMATOR, "animator", animator_block(go))
+    sr = p.add(CID_SPRITE_RENDERER, "sprite", sprite_block(go, 5))
+    p.add(CID_BOX_COLLIDER_2D, "collider", box_collider(go, 2, 2))
+    p.add(CID_RIGIDBODY_2D, "rb", rigidbody2d(go))
     hb_go, _hb = add_healthbar(ctx, tr)
     ret_go, _ret_tr = ctx.child(tr, "RetractedVisual", active=False)
     if "tesla" in (card["cardName"] or "").lower():
@@ -479,9 +497,9 @@ def build_spell(card):
     p = Prefab(f"Spell_{sanitize_prefab_name(card['cardName'])}", "Spell", LAYERS["Spell"])
     ctx = Ctx(p)
     go, tr = ctx.go(p.name, "Spell", LAYERS["Spell"])
-    ps = p.add(100, "ps", particle_system(go, color=spell_color(card["cardName"]),
+    ps = p.add(CID_PARTICLE_SYSTEM, "ps", particle_system(go, color=spell_color(card["cardName"]),
                                           gradient=spell_gradient(card["cardName"])))
-    p.add(26, "psr", particle_renderer(go))
+    p.add(CID_PARTICLE_SYSTEM_RENDERER, "psr", particle_renderer(go))
     ctx.mb(go, "SpellPoolable", [])
     ctx.mb(go, "SpellEffectView", [("_particleSystem", ref(ps)),
                                    ("_areaIndicator", "{fileID: 0}"),
@@ -493,13 +511,13 @@ def build_projectile(card):
     p = Prefab(f"Projectile_{sanitize_prefab_name(card['cardName'])}", "Projectile", LAYERS["Projectile"])
     ctx = Ctx(p)
     go, tr = ctx.go(p.name, "Projectile", LAYERS["Projectile"])
-    sr = p.add(212, "sprite", sprite_block(go, 15))
-    trl = p.add(110, "trail", trail_block(go))
-    p.add(60, "collider", circle_collider(go, 0.2))
-    p.add(50, "rb", rigidbody2d(go))
+    sr = p.add(CID_SPRITE_RENDERER, "sprite", sprite_block(go, 15))
+    trl = p.add(CID_TRAIL_RENDERER, "trail", trail_block(go))
+    p.add(CID_CIRCLE_COLLIDER_2D, "collider", circle_collider(go, 0.2))
+    p.add(CID_RIGIDBODY_2D, "rb", rigidbody2d(go))
     imp_go, _imp_tr = ctx.child(tr, "ImpactParticles")
-    ips = p.add(100, "impact", particle_system(imp_go))
-    p.add(26, "impactr", particle_renderer(imp_go))
+    ips = p.add(CID_PARTICLE_SYSTEM, "impact", particle_system(imp_go))
+    p.add(CID_PARTICLE_SYSTEM_RENDERER, "impactr", particle_renderer(imp_go))
     ctx.mb(go, "ProjectilePoolable", [])
     ctx.mb(go, "ProjectileView", [("_spriteRenderer", ref(sr)), ("_trailRenderer", ref(trl)),
                                   ("_impactParticles", ref(ips))])
@@ -510,10 +528,10 @@ def build_tower(name, hp):
     p = Prefab(f"Tower_{name}", "Tower", LAYERS["Tower"])
     ctx = Ctx(p)
     go, tr = ctx.go(p.name, "Tower", LAYERS["Tower"])
-    an = p.add(95, "animator", animator_block(go))
-    sr = p.add(212, "sprite", sprite_block(go, 5))
-    p.add(59, "collider", box_collider(go, 3, 4))
-    p.add(50, "rb", rigidbody2d(go))
+    an = p.add(CID_ANIMATOR, "animator", animator_block(go))
+    sr = p.add(CID_SPRITE_RENDERER, "sprite", sprite_block(go, 5))
+    p.add(CID_BOX_COLLIDER_2D, "collider", box_collider(go, 3, 4))
+    p.add(CID_RIGIDBODY_2D, "rb", rigidbody2d(go))
     hb_go, _hb = add_healthbar(ctx, tr)
     act_go, _act_tr = ctx.child(tr, "ActivationEffect", active=False)
     ctx.mb(go, "TowerView", [("_spriteRenderer", ref(sr)), ("_animator", ref(an)),

@@ -32,7 +32,7 @@ namespace CRClone.UI.Components
             _offer = offer;
             _onPurchaseClicked = onPurchaseClicked;
 
-            _purchaseButton?.onClick.AddListener(() => _onPurchaseClicked?.Invoke(_offer));
+            _purchaseButton.OrNull()?.onClick.AddListener(() => _onPurchaseClicked?.Invoke(_offer));
 
             UpdateVisuals();
             StartTimer();

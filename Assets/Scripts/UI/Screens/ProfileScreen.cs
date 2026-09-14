@@ -45,9 +45,9 @@ namespace CRClone.UI.Screens
         {
             if (_isInitialized) return;
 
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
-            _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
-            _changeNameButton?.onClick.AddListener(OnChangeName);
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _settingsButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
+            _changeNameButton.OrNull()?.onClick.AddListener(OnChangeName);
 
             _isInitialized = true;
         }

@@ -49,8 +49,8 @@ namespace CRClone.UI.Screens
         {
             if (_isInitialized) return;
 
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
-            _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _settingsButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
 
             SetupBattleModeButtons();
             SetupDeckBuilderButton();
@@ -73,16 +73,16 @@ namespace CRClone.UI.Screens
 
         private void SetupBattleModeButtons()
         {
-            _battle1v1Button?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
-            _battle2v2Button?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
-            _tournamentButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
-            _friendlyButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
-            _practiceButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
+            _battle1v1Button.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
+            _battle2v2Button.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
+            _tournamentButton.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
+            _friendlyButton.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
+            _practiceButton.OrNull()?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
         }
 
         private void SetupDeckBuilderButton()
         {
-            _deckBuilderButton?.onClick.AddListener(() => 
+            _deckBuilderButton.OrNull()?.onClick.AddListener(() => 
             {
                 UISoundPlayer.Instance?.PlayButtonClick();
                 Services.Get<GameManager>().ChangeState(GameState.DeckBuilder);

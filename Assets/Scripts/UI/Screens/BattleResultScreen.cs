@@ -65,17 +65,17 @@ namespace CRClone.UI.Screens
 
         private void SetupUI()
         {
-            _watchReplayButton?.onClick.AddListener(OnWatchReplay);
-            _shareButton?.onClick.AddListener(OnShare);
-            _rematchButton?.onClick.AddListener(OnRematch);
-            _backToLobbyButton?.onClick.AddListener(OnBackToLobby);
+            _watchReplayButton.OrNull()?.onClick.AddListener(OnWatchReplay);
+            _shareButton.OrNull()?.onClick.AddListener(OnShare);
+            _rematchButton.OrNull()?.onClick.AddListener(OnRematch);
+            _backToLobbyButton.OrNull()?.onClick.AddListener(OnBackToLobby);
 
             bool isPlayer1Victory = _battleEvent.result == BattleStatus.Player1Won;
             bool isDraw = _battleEvent.result == BattleStatus.Draw;
 
-            _victoryBanner?.SetActive(isPlayer1Victory && !isDraw);
-            _defeatBanner?.SetActive(!isPlayer1Victory && !isDraw);
-            _drawBanner?.SetActive(isDraw);
+            _victoryBanner.OrNull()?.SetActive(isPlayer1Victory && !isDraw);
+            _defeatBanner.OrNull()?.SetActive(!isPlayer1Victory && !isDraw);
+            _drawBanner.OrNull()?.SetActive(isDraw);
 
             string resultText = isDraw ? "DRAW" : (isPlayer1Victory ? "VICTORY" : "DEFEAT");
             if (_resultTitleText != null) _resultTitleText.text = resultText;
