@@ -590,11 +590,11 @@ namespace CRClone.Editor
             AddTransition(idleState, walkState, "Speed", 0.1f, true);
             AddTransition(walkState, idleState, "Speed", 0.1f, false);
             AddTransition(idleState, attackState, "Attack");
-            AddTransition(attackState, idleState, exitTime: 0.9f);
+            AddTransition(attackState, idleState, null, exitTime: 0.9f);
             AddTransition(anyState: rootStateMachine, hitState, "Hit");
-            AddTransition(hitState, idleState, exitTime: 0.9f);
+            AddTransition(hitState, idleState, null, exitTime: 0.9f);
             AddTransition(anyState: rootStateMachine, deathState, "Death");
-            AddTransition(spawnState, idleState, exitTime: 0.9f);
+            AddTransition(spawnState, idleState, null, exitTime: 0.9f);
 
             return controller;
         }
@@ -619,11 +619,11 @@ namespace CRClone.Editor
             rootStateMachine.defaultState = idleState;
 
             AddTransition(idleState, attackState, "Attack");
-            AddTransition(attackState, idleState, exitTime: 0.9f);
+            AddTransition(attackState, idleState, null, exitTime: 0.9f);
             AddTransition(anyState: rootStateMachine, damagedState, "Damaged");
-            AddTransition(damagedState, idleState, exitTime: 0.9f);
+            AddTransition(damagedState, idleState, null, exitTime: 0.9f);
             AddTransition(anyState: rootStateMachine, destroyedState, "Destroyed");
-            AddTransition(spawnState, idleState, exitTime: 0.9f);
+            AddTransition(spawnState, idleState, null, exitTime: 0.9f);
 
             return controller;
         }
@@ -644,8 +644,8 @@ namespace CRClone.Editor
             rootStateMachine.defaultState = idleState;
 
             AddTransition(idleState, castState, "Cast");
-            AddTransition(castState, impactState, exitTime: 0.9f);
-            AddTransition(impactState, idleState, exitTime: 0.9f);
+            AddTransition(castState, impactState, null, exitTime: 0.9f);
+            AddTransition(impactState, idleState, null, exitTime: 0.9f);
 
             return controller;
         }
@@ -668,9 +668,9 @@ namespace CRClone.Editor
             rootStateMachine.defaultState = idleState;
 
             AddTransition(idleState, attackState, "Attack");
-            AddTransition(attackState, idleState, exitTime: 0.9f);
+            AddTransition(attackState, idleState, null, exitTime: 0.9f);
             AddTransition(anyState: rootStateMachine, activateState, "Activate");
-            AddTransition(activateState, idleState, exitTime: 0.9f);
+            AddTransition(activateState, idleState, null, exitTime: 0.9f);
             AddTransition(anyState: rootStateMachine, destroyedState, "Destroyed");
 
             return controller;
