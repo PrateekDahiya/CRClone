@@ -66,7 +66,7 @@ namespace CRClone.Core.Math
         public override string ToString() => ToFloat().ToString("F4");
 
         // Math functions
-        public static Fixed Abs(Fixed a) => new Fixed(Math.Abs(a._value));
+        public static Fixed Abs(Fixed a) => new Fixed(System.Math.Abs(a._value));
         public static Fixed Min(Fixed a, Fixed b) => a < b ? a : b;
         public static Fixed Max(Fixed a, Fixed b) => a > b ? a : b;
         public static Fixed Clamp(Fixed value, Fixed min, Fixed max) => Max(min, Min(max, value));
@@ -76,7 +76,7 @@ namespace CRClone.Core.Math
             if (a._value <= 0) return Zero;
             // Newton's method for fixed-point sqrt
             long x = a._value << FRACTIONAL_BITS; // Scale up for precision
-            long root = (long)Math.Sqrt(x);
+            long root = (long)System.Math.Sqrt(x);
             return new Fixed((int)root);
         }
 

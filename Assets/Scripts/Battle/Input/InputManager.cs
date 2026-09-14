@@ -52,21 +52,21 @@ namespace CRClone.Battle.Input
         private void HandleMouseInput()
         {
             // Left click
-            if (Input.GetMouseButtonDown(0) && !_isOverUI)
+            if (UnityEngine.Input.GetMouseButtonDown(0) && !_isOverUI)
             {
-                OnPointerDown(Input.mousePosition);
+                OnPointerDown(UnityEngine.Input.mousePosition);
             }
-            else if (Input.GetMouseButton(0) && _isDragging)
+            else if (UnityEngine.Input.GetMouseButton(0) && _isDragging)
             {
-                OnPointerDrag(Input.mousePosition);
+                OnPointerDrag(UnityEngine.Input.mousePosition);
             }
-            else if (Input.GetMouseButtonUp(0) && _isDragging)
+            else if (UnityEngine.Input.GetMouseButtonUp(0) && _isDragging)
             {
-                OnPointerUp(Input.mousePosition);
+                OnPointerUp(UnityEngine.Input.mousePosition);
             }
 
             // Right click / Escape to cancel
-            if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
+            if (UnityEngine.Input.GetMouseButtonDown(1) || UnityEngine.Input.GetKeyDown(KeyCode.Escape))
             {
                 CancelSelection();
             }
@@ -74,7 +74,7 @@ namespace CRClone.Battle.Input
             // Number keys 1-4 for quick card selection
             for (int i = 0; i < 4; i++)
             {
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i))
+                if (UnityEngine.Input.GetKeyDown(KeyCode.Alpha1 + i))
                 {
                     SelectCardByIndex(i);
                 }
@@ -83,9 +83,9 @@ namespace CRClone.Battle.Input
 
         private void HandleTouchInput()
         {
-            if (Input.touchCount == 0) return;
+            if (UnityEngine.Input.touchCount == 0) return;
 
-            var touch = Input.GetTouch(0);
+            var touch = UnityEngine.Input.GetTouch(0);
             
             if (touch.phase == TouchPhase.Began && !_isOverUI)
             {
