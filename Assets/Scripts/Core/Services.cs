@@ -79,6 +79,8 @@ namespace CRClone.Core
 {
     public static class EventBus
     {
+        private static readonly Dictionary<Type, Delegate> _genericHandlers = new();
+
         // Battle Events
         public static event Action<CardPlayedEvent> OnCardPlayed;
         public static event Action<UnitSpawnedEvent> OnUnitSpawned;
@@ -376,6 +378,35 @@ namespace CRClone.Core
         public static void Raise(CardUpgradedEvent e) => OnCardUpgraded?.Invoke(e);
         public static void Raise(ChestUnlockedEvent e) => OnChestUnlocked?.Invoke(e);
         public static void Raise(QuestCompletedEvent e) => OnQuestCompleted?.Invoke(e);
+
+        public static void On<T>(Action<T> handler)
+        {
+            var type = typeof(T);
+            if (_genericHandlers.TryGetValue(type, out var existing))
+                _genericHandlers[type] = Delegate.Combine(existing, handler);
+            else
+                _genericHandlers[type] = handler;
+        }
+
+        public static void Off<T>(Action<T> handler)
+        {
+            var type = typeof(T);
+            if (_genericHandlers.TryGetValue(type, out var existing))
+            {
+                var removed = Delegate.Remove(existing, handler);
+                if (removed == null)
+                    _genericHandlers.Remove(type);
+                else
+                    _genericHandlers[type] = removed;
+            }
+        }
+
+        public static void Raise<T>(T e)
+        {
+            var type = typeof(T);
+            if (_genericHandlers.TryGetValue(type, out var existing) && existing is Action<T> action)
+                action?.Invoke(e);
+        }
     }
 
     public enum ScreenType
