@@ -13,7 +13,7 @@ namespace CRClone.Battle.Simulation
         public int Damage { get; private set; }
         public float Speed { get; private set; }
         public bool IsHoming { get; private set; }
-        public bool IsBeam { get; private set; }
+        public bool IsBeam { get; protected set; }
         public bool IsMortarShot { get; set; }
         public bool Is360Splash { get; set; } // Valkyrie, Dark Prince
         public float SplashRadius { get; set; }
