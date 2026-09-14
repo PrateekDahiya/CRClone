@@ -179,7 +179,7 @@ public static class AudioClipRegistry
         if (manager == null) return;
 
         // Music
-"";
+";
 
             var musicFiles = Directory.GetFiles("Assets/Audio/Music", "*.*", SearchOption.AllDirectories)
                 .Where(f => f.EndsWith(".wav") || f.EndsWith(".ogg") || f.EndsWith(".mp3"))
@@ -194,7 +194,7 @@ public static class AudioClipRegistry
 
             script += @"
         // SFX
-"";
+";
 
             var sfxFolders = new[] { "Units", "Spells", "Buildings", "Towers", "UI", "Announcer" };
             foreach (var folder in sfxFolders)
@@ -217,7 +217,7 @@ public static class AudioClipRegistry
 
             script += @"
         // Voice
-"";
+";
 
             var voiceFiles = Directory.GetFiles("Assets/Audio/Voice", "*.*", SearchOption.AllDirectories)
                 .Where(f => f.EndsWith(".wav") || f.EndsWith(".ogg") || f.EndsWith(".mp3"))
