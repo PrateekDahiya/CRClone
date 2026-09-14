@@ -77,7 +77,7 @@ namespace CRClone.Editor
                 if (File.Exists(path))
                 {
                     _texturePackerPath = path;
-                    Debug.Log($"[AtlasBuilder] Found TexturePacker at: {path}");
+                    UnityEngine.Debug.Log($"[AtlasBuilder] Found TexturePacker at: {path}");
                     return;
                 }
             }
@@ -193,11 +193,11 @@ namespace CRClone.Editor
 
             if (process.ExitCode != 0)
             {
-                Debug.LogError($"[AtlasBuilder] TexturePacker failed: {error}");
+                UnityEngine.Debug.LogError($"[AtlasBuilder] TexturePacker failed: {error}");
                 throw new Exception($"TexturePacker failed: {error}");
             }
 
-            Debug.Log($"[AtlasBuilder] {output}");
+            UnityEngine.Debug.Log($"[AtlasBuilder] {output}");
         }
 
         private void ConfigureImportSettings()

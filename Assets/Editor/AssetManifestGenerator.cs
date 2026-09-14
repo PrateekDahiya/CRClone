@@ -124,8 +124,7 @@ namespace CRClone.Editor
                 string compression = "Unknown";
                 if (importer != null)
                 {
-                    var settings = new TextureImporterPlatformSettings();
-                    importer.GetPlatformTextureSettings(settings);
+                    var settings = importer.GetPlatformTextureSettings("Standalone");
                     compression = settings.format.ToString();
                 }
 
@@ -151,7 +150,7 @@ namespace CRClone.Editor
                 var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
                 if (clip == null) continue;
 
-                var importer = AssetImporter.GetAtPath(path) as AudioImporter;
+                var importer = AssetImporter.GetAtPath(path) as UnityEditor.AudioImporter;
                 string compression = "Unknown";
                 if (importer != null)
                 {
@@ -271,7 +270,7 @@ namespace CRClone.Editor
         private long GetTextureMemory(Texture2D tex)
         {
             if (tex == null) return 0;
-            int bytesPerPixel = 4; // Default RGBA32
+            float bytesPerPixel = 4; // Default RGBA32
             switch (tex.format)
             {
                 case TextureFormat.ASTC_4x4: bytesPerPixel = 1; break;

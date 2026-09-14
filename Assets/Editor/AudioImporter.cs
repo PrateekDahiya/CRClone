@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -122,7 +123,7 @@ namespace CRClone.Editor
         private void ProcessAudioFile(string filePath)
         {
             var relativePath = MakeRelativePath(filePath);
-            var importer = AssetImporter.GetAtPath(relativePath) as AudioImporter;
+            var importer = AssetImporter.GetAtPath(relativePath) as UnityEditor.AudioImporter;
             
             if (importer == null)
             {
