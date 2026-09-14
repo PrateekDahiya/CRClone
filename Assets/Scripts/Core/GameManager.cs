@@ -298,15 +298,9 @@ namespace CRClone.Core
     {
         public long playerId;
         public string username;
-        public string playerTag;
-        public int trophies;
-        public int level;
-        public long gold;
-        public int gems;
         public int avatarId;
         public string nameColor;
         public DeckData activeDeck;
-        public Dictionary<int, CardCollectionEntry> collection = new();
         public PlayerSettings settings;
     }
 
