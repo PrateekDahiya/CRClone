@@ -8,7 +8,6 @@ using CRClone.Data;
 using CRClone.Tests.TestFixtures;
 using PlayerInput = CRClone.Network.PlayerInput;
 using InputType = CRClone.Network.InputType;
-using Unit = CRClone.Battle.Simulation.Unit;
 
 namespace CRClone.Tests.Performance
 {

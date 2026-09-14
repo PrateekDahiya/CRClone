@@ -8,7 +8,6 @@ using CRClone.Data;
 using PlayerInput = CRClone.Network.PlayerInput;
 using InputType = CRClone.Network.InputType;
 using BattleStatus = CRClone.Core.BattleStatus;
-using Unit = CRClone.Battle.Simulation.Unit;
 
 namespace CRClone.Tests.TestFixtures
 {
@@ -126,7 +125,7 @@ namespace CRClone.Tests.TestFixtures
         /// mechanics rather than the economy. Returns the spawned unit if any.
         /// Valid P1 deploy: y &lt;= 13. Valid P2 deploy: y &gt;= 19. Spells: anywhere.
         /// </summary>
-        protected Unit PlayCard(int playerId, int cardId, Vector2 position)
+        protected CRClone.Battle.Simulation.Unit PlayCard(int playerId, int cardId, Vector2 position)
         {
             SetPlayerElixir(playerId, 10);
             var input = new PlayerInput
@@ -165,7 +164,7 @@ namespace CRClone.Tests.TestFixtures
             Tick();
         }
 
-        protected Unit FindUnit(int playerId, int cardId)
+        protected CRClone.Battle.Simulation.Unit FindUnit(int playerId, int cardId)
         {
             foreach (var unit in Simulation.Units)
             {
@@ -175,9 +174,9 @@ namespace CRClone.Tests.TestFixtures
             return null;
         }
 
-        protected List<Unit> FindUnits(int playerId, int cardId)
+        protected List<CRClone.Battle.Simulation.Unit> FindUnits(int playerId, int cardId)
         {
-            var result = new List<Unit>();
+            var result = new List<CRClone.Battle.Simulation.Unit>();
             foreach (var unit in Simulation.Units)
             {
                 if (unit.OwnerPlayerId == playerId && unit.CardData.cardId == cardId)
@@ -186,9 +185,9 @@ namespace CRClone.Tests.TestFixtures
             return result;
         }
 
-        protected List<Unit> FindUnitsByName(int playerId, string cardName)
+        protected List<CRClone.Battle.Simulation.Unit> FindUnitsByName(int playerId, string cardName)
         {
-            var result = new List<Unit>();
+            var result = new List<CRClone.Battle.Simulation.Unit>();
             foreach (var unit in Simulation.Units)
             {
                 if (unit.OwnerPlayerId == playerId && unit.CardData.cardName == cardName)
@@ -207,7 +206,7 @@ namespace CRClone.Tests.TestFixtures
             return null;
         }
 
-        private Unit FindBuildingAsUnit(int playerId, int cardId)
+        private CRClone.Battle.Simulation.Unit FindBuildingAsUnit(int playerId, int cardId)
         {
             return null; // Buildings are not units; kept for API symmetry
         }
