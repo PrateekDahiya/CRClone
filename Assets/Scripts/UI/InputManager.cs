@@ -145,7 +145,7 @@ namespace CRClone.UI
         {
             foreach (var binding in _defaultBindings)
             {
-                var action = new InputAction(binding.action.ToString(), InputActionType.Button);
+                var action = new InputAction(binding.action.ToString(), UnityEngine.InputSystem.InputActionType.Button);
                 action.AddBinding($"<Keyboard>/{binding.keyboardKey}");
                 action.AddBinding($"<Gamepad>/{binding.gamepadButton}");
                 action.Enable();
