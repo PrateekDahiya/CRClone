@@ -189,10 +189,10 @@ namespace CRClone.Battle.Input
 
         private void DeployCard(Vector3 worldPos)
         {
-            var input = new NetworkClient.PlayerInput
+            var input = new PlayerInput
             {
                 type = GetInputTypeForCard(_selectedCardId),
-                cardId = _selectedCardId,
+                cardId = (uint)_selectedCardId,
                 position = new Vector2(worldPos.x, worldPos.y),
                 clientTick = 0 // Will be set by network client
             };
