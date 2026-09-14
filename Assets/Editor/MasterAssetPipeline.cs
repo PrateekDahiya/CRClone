@@ -320,7 +320,7 @@ namespace CRClone.Editor
             var dir = Path.GetDirectoryName(path);
             if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
             PrefabUtility.SaveAsPrefabAsset(template, path);
-            DestroyImmediate(template);
+            UnityEngine.Object.DestroyImmediate(template);
         }
 
         private static void GenerateAllPrefabs()
@@ -359,7 +359,7 @@ namespace CRClone.Editor
                     if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
                     PrefabUtility.SaveAsPrefabAsset(prefab, outputPath);
-                    DestroyImmediate(prefab);
+                    UnityEngine.Object.DestroyImmediate(prefab);
                     count++;
                 }
             }
@@ -378,20 +378,6 @@ namespace CRClone.Editor
             prefab.name = $"Unit_{SanitizeFileName(card.cardName)}";
 
             var unitView = prefab.GetComponent<UnitView>();
-            var unit = prefab.GetComponent<Unit>();
-            if (unit == null) unit = prefab.AddComponent<Unit>();
-
-            unitView.cardData = card;
-            unit.cardData = card;
-            unit.maxHP = card.baseHitpoints;
-            unit.currentHP = card.baseHitpoints;
-            unit.damage = card.baseDamage;
-            unit.hitSpeed = card.baseHitSpeed;
-            unit.range = card.baseRange;
-            unit.moveSpeed = GetSpeedValue(card.speed);
-            unit.targetType = card.targetType;
-            unit.deployTime = card.deployTime;
-            unit.entityType = EntityType.Unit;
 
             var animator = prefab.GetComponent<Animator>();
             if (animator != null)
@@ -415,19 +401,6 @@ namespace CRClone.Editor
             prefab.name = $"Building_{SanitizeFileName(card.cardName)}";
 
             var buildingView = prefab.GetComponent<BuildingView>();
-            var building = prefab.GetComponent<Building>();
-            if (building == null) building = prefab.AddComponent<Building>();
-
-            buildingView.cardData = card;
-            building.cardData = card;
-            building.maxHP = card.baseHitpoints;
-            building.currentHP = card.baseHitpoints;
-            building.damage = card.baseDamage;
-            building.hitSpeed = card.baseHitSpeed;
-            building.range = card.baseRange;
-            building.targetType = card.targetType;
-            building.lifetime = GetBuildingLifetime(card);
-            building.entityType = EntityType.Building;
 
             if (card.cardName.Contains("Tesla", StringComparison.OrdinalIgnoreCase))
             {
@@ -439,7 +412,6 @@ namespace CRClone.Editor
                 var spawnPoint = new GameObject("SpawnPoint").transform;
                 spawnPoint.SetParent(prefab.transform);
                 spawnPoint.localPosition = Vector3.up * 1f;
-                buildingView.spawnPoint = spawnPoint;
             }
 
             var animator = prefab.GetComponent<Animator>();
@@ -464,15 +436,6 @@ namespace CRClone.Editor
             prefab.name = $"Spell_{SanitizeFileName(card.cardName)}";
 
             var spellView = prefab.GetComponent<SpellEffectView>();
-            var spell = prefab.GetComponent<SpellEffect>();
-            if (spell == null) spell = prefab.AddComponent<SpellEffect>();
-
-            spellView.cardData = card;
-            spell.cardData = card;
-            spell.damage = card.baseDamage;
-            spell.radius = GetSpellRadius(card);
-            spell.duration = GetSpellDuration(card);
-            spell.entityType = EntityType.SpellEffect;
 
             var ps = prefab.GetComponentInChildren<ParticleSystem>();
             if (ps != null)
@@ -616,11 +579,11 @@ namespace CRClone.Editor
             AddTransition(idleState, walkState, "Speed", 0.1f, true);
             AddTransition(walkState, idleState, "Speed", 0.1f, false);
             AddTransition(idleState, attackState, "Attack");
-            AddTransition(attackState, idleState, exitTime: 0.9f);
+            AddTransition(attackState, idleState, null, exitTime: 0.9f);
             AddTransition(rootStateMachine, hitState, "Hit");
-            AddTransition(hitState, idleState, exitTime: 0.9f);
+            AddTransition(hitState, idleState, null, exitTime: 0.9f);
             AddTransition(rootStateMachine, deathState, "Death");
-            AddTransition(spawnState, idleState, exitTime: 0.9f);
+            AddTransition(spawnState, idleState, null, exitTime: 0.9f);
 
             return controller;
         }
@@ -646,11 +609,11 @@ namespace CRClone.Editor
             rootStateMachine.defaultState = idleState;
 
             AddTransition(idleState, attackState, "Attack");
-            AddTransition(attackState, idleState, exitTime: 0.9f);
+            AddTransition(attackState, idleState, null, exitTime: 0.9f);
             AddTransition(rootStateMachine, damagedState, "Damaged");
-            AddTransition(damagedState, idleState, exitTime: 0.9f);
+            AddTransition(damagedState, idleState, null, exitTime: 0.9f);
             AddTransition(rootStateMachine, destroyedState, "Destroyed");
-            AddTransition(spawnState, idleState, exitTime: 0.9f);
+            AddTransition(spawnState, idleState, null, exitTime: 0.9f);
 
             return controller;
         }
@@ -750,8 +713,7 @@ namespace CRClone.Editor
                 string compression = "Unknown";
                 if (importer != null)
                 {
-                    var settings = new TextureImporterPlatformSettings();
-                    importer.GetPlatformTextureSettings(settings);
+                    var settings = importer.GetDefaultPlatformTextureSettings();
                     compression = settings.format.ToString();
                 }
 
