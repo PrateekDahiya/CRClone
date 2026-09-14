@@ -283,7 +283,7 @@ namespace CRClone.UI.Screens
 
             ScrollToBottom();
 
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanChatMessage { message = message });
+            Services.Get<NetworkClient>().Send(new ClanChatMessage { message = message });
         }
 
         private void OnDonateRequest()
@@ -298,7 +298,7 @@ namespace CRClone.UI.Screens
 
         private void OnDonateRequestConfirmed(int cardId, int count)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonationRequest { cardId = cardId, count = count });
+            Services.Get<NetworkClient>().Send(new ClanDonationRequest { cardId = cardId, count = count });
         }
 
         private void OnDonateClicked(int cardId, string requesterId)
@@ -309,7 +309,7 @@ namespace CRClone.UI.Screens
                 int maxDonate = GetMaxDonation(cardId);
                 if (playerData.collection[cardId].count >= maxDonate)
                 {
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonate { cardId = cardId, recipientId = requesterId, count = maxDonate });
+                    Services.Get<NetworkClient>().Send(new ClanDonate { cardId = cardId, recipientId = requesterId, count = maxDonate });
                     EventBus.RaiseToast("Donated!");
                 }
                 else
@@ -337,7 +337,7 @@ namespace CRClone.UI.Screens
 
         private void OnWarParticipate()
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanWarAction { action = "participate" });
+            Services.Get<NetworkClient>().Send(new ClanWarAction { action = "participate" });
         }
 
         private void OnLeaveClan()
@@ -347,7 +347,7 @@ namespace CRClone.UI.Screens
 
         private void OnMemberAction(ClanMember member, MemberAction action)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanMemberAction 
+            Services.Get<NetworkClient>().Send(new ClanMemberAction 
             { 
                 targetPlayerId = member.playerId, 
                 action = action.ToString().ToLower() 

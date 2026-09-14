@@ -262,7 +262,7 @@ namespace CRClone.UI.Screens
             UISoundPlayer.Instance?.PlaySuccess();
 
             // Send to server
-            Services.Get<NetworkClient>().Send(new NetworkClient.ShopPurchaseRequest 
+            Services.Get<NetworkClient>().Send(new ShopPurchaseRequest 
             { 
                 offerId = offer.id, 
                 currency = offer.costType 

@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.UI;
 
 namespace CRClone.UI.Screens
 {
@@ -398,7 +399,7 @@ namespace CRClone.UI.Screens
                 AccessibilityManager.Instance.SetHighContrastMode(_highContrastToggle?.isOn ?? false);
                 AccessibilityManager.Instance.SetReduceMotion(_reduceMotionToggle?.isOn ?? false);
                 AccessibilityManager.Instance.SetTextScale(_textScaleSlider?.value ?? 1f);
-                AccessibilityManager.Instance.SetColorBlindMode((AccessibilityManager.ColorBlindMode)(_colorBlindDropdown?.value ?? 0));
+                AccessibilityManager.Instance.SetColorBlindMode((ColorBlindMode)(_colorBlindDropdown?.value ?? 0));
             }
         }
 
@@ -557,7 +558,7 @@ namespace CRClone.UI.Screens
             PlayerPrefs.SetInt("color_blind", value);
             if (AccessibilityManager.Instance != null)
             {
-                AccessibilityManager.Instance.SetColorBlindMode((AccessibilityManager.ColorBlindMode)value);
+                AccessibilityManager.Instance.SetColorBlindMode((ColorBlindMode)value);
             }
         }
 

@@ -111,7 +111,7 @@ namespace CRClone.UI.Components
                         {
                             if (!string.IsNullOrEmpty(_message.replayLink))
                             {
-                                Services.Get<NetworkClient>().Send(new NetworkClient.ReplayRequest { replayCode = _message.replayLink });
+                                Services.Get<NetworkClient>().Send(new ReplayRequest { replayCode = _message.replayLink });
                             }
                         });
                     }

@@ -8,6 +8,7 @@ using CRClone.Data;
 using CRClone.Network;
 using CRClone.Systems;
 using CRClone.UI.Animation;
+using CRClone.UI.Components;
 
 namespace CRClone.UI
 {
@@ -410,7 +411,7 @@ namespace CRClone.UI
                 }
 
                 Array.Copy(_currentDeck, _originalDeck, 8);
-                Services.Get<NetworkClient>().Send(new NetworkClient.SaveDeckRequest { cardIds = _currentDeck });
+                Services.Get<NetworkClient>().Send(new SaveDeckRequest { cardIds = _currentDeck });
                 EventBus.RaiseToast("Deck saved!");
                 UISoundPlayer.Instance?.PlaySuccess();
             }
