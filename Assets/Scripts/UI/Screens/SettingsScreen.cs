@@ -63,6 +63,7 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _resetToDefaultsButton;
 
         private SettingsTab _currentTab = SettingsTab.Graphics;
+        private bool _isInitialized;
 
         public enum SettingsTab
         {
@@ -80,6 +81,8 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
+            if (_isInitialized) return;
+
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
             _resetToDefaultsButton?.onClick.AddListener(ResetToDefaults);
 
@@ -97,6 +100,13 @@ namespace CRClone.UI.Screens
 
             LoadSettings();
             SwitchTab(SettingsTab.Graphics);
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void SetupGraphicsSettings()

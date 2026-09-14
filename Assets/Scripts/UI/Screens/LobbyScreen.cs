@@ -59,6 +59,11 @@ namespace CRClone.UI.Screens
             _isInitialized = true;
         }
 
+        public void Initialize()
+        {
+            InitializeComponents();
+        }
+
         private void OnEnable()
         {
             UpdatePlayerInfo();
@@ -68,11 +73,11 @@ namespace CRClone.UI.Screens
 
         private void SetupBattleModeButtons()
         {
-            _battle1v1Button?.onClick.AddListener(() => StartMatchmaking(BattleType.Ladder));
-            _battle2v2Button?.onClick.AddListener(() => StartMatchmaking(BattleType.TwoVTwo));
-            _tournamentButton?.onClick.AddListener(() => StartMatchmaking(BattleType.Tournament));
-            _friendlyButton?.onClick.AddListener(() => StartMatchmaking(BattleType.Friendly));
-            _practiceButton?.onClick.AddListener(() => StartMatchmaking(BattleType.Practice));
+            _battle1v1Button?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
+            _battle2v2Button?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
+            _tournamentButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
+            _friendlyButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
+            _practiceButton?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
         }
 
         private void SetupDeckBuilderButton()
@@ -100,7 +105,7 @@ namespace CRClone.UI.Screens
             }
         }
 
-        private void StartMatchmaking(BattleType type)
+        private void StartMatchmaking(CRClone.Network.BattleType type)
         {
             UISoundPlayer.Instance?.PlayButtonClick();
             Services.Get<NetworkClient>().Send(new NetworkClient.MatchmakingRequest { battleType = type });

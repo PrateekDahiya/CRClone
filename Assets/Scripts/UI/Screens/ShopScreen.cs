@@ -45,6 +45,7 @@ namespace CRClone.UI.Screens
         private float _dailyRefreshTime = 86400f; // 24 hours
         private float _specialOfferTime = 3600f; // 1 hour
         private Coroutine _timerCoroutine;
+        private bool _isInitialized;
 
         public enum ShopTab
         {
@@ -62,6 +63,8 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
+            if (_isInitialized) return;
+
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
             _dailyTab?.onClick.AddListener(() => SwitchTab(ShopTab.Daily));
@@ -72,6 +75,13 @@ namespace CRClone.UI.Screens
 
             LoadOffers();
             UpdateCurrency();
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void OnEnable()
