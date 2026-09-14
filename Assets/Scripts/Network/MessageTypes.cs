@@ -396,6 +396,63 @@ namespace CRClone.Network
         [ProtoMember(801)] public byte[] data { get; set; }
     }
 
+    // Replay (consumed by ChatMessageUI, BattleResultScreen, ProfileScreen)
+    [ProtoContract]
+    public class ReplayRequest
+    {
+        [ProtoMember(1)] public long replayId { get; set; }
+        [ProtoMember(2)] public string replayCode { get; set; }
+    }
+
+    // Battle rematch (consumed by BattleResultScreen)
+    [ProtoContract]
+    public class RematchRequest
+    {
+        [ProtoMember(1)] public long battleId { get; set; }
+    }
+
+    // Player rename (consumed by ProfileScreen)
+    [ProtoContract]
+    public class ChangeNameRequest
+    {
+        [ProtoMember(1)] public string newName { get; set; }
+    }
+
+    // Clan (consumed by ClanScreen)
+    [ProtoContract]
+    public class ClanChatMessage
+    {
+        [ProtoMember(1)] public string message { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanDonationRequest
+    {
+        [ProtoMember(1)] public int cardId { get; set; }
+        [ProtoMember(2)] public int count { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanDonate
+    {
+        [ProtoMember(1)] public int cardId { get; set; }
+        [ProtoMember(2)] public string recipientId { get; set; }
+        [ProtoMember(3)] public int count { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanWarAction
+    {
+        [ProtoMember(1)] public string action { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanMemberAction
+    {
+        [ProtoMember(1)] public string targetPlayerId { get; set; }
+        [ProtoMember(2)] public string action { get; set; }
+    }
+
     // Helper to identify message types
     // NOTE: this set is the wire-contract source of truth for the client.
     // Every constant here must have a matching proto message in
