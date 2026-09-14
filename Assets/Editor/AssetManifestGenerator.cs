@@ -154,8 +154,7 @@ namespace CRClone.Editor
                 string compression = "Unknown";
                 if (importer != null)
                 {
-                    var settings = new AudioImporterSampleSettings();
-                    importer.GetOverrideSampleSettings("Standalone", out settings);
+                    var settings = importer.GetOverrideSampleSettings("Standalone");
                     compression = settings.compressionFormat.ToString();
                 }
 

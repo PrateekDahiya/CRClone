@@ -143,17 +143,8 @@ namespace CRClone.Editor
                 sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate
             };
 
-            if (_forceMonoForSFX && isSFX && !isVoice)
-            {
-                settings.conversionMode = AudioConversionMode.Mono;
-            }
-            else if (isMusic)
-            {
-                settings.conversionMode = AudioConversionMode.Stereo;
-            }
-
             importer.forceToMono = _forceMonoForSFX && isSFX && !isVoice;
-            importer.preloadAudioData = !isMusic;
+            settings.preloadAudioData = !isMusic;
             importer.SetOverrideSampleSettings("Standalone", settings);
             importer.SetOverrideSampleSettings("iPhone", settings);
             importer.SetOverrideSampleSettings("Android", settings);
@@ -245,56 +236,18 @@ public static class AudioClipRegistry
 
         private void CreateAudioMixer()
         {
-            var mixerPath = "Assets/Audio/GameAudioMixer.mixer";
-            
-            if (File.Exists(mixerPath))
-            {
-                if (!EditorUtility.DisplayDialog("Exists", "AudioMixer already exists. Overwrite?", "Yes", "No"))
-                    return;
-            }
-
-            var mixer = AudioMixer.CreateAudioMixer("GameAudioMixer");
-            
-            // Create groups
-            var masterGroup = mixer.AddGroup("Master");
-            var musicGroup = mixer.AddGroup("Music");
-            var sfxGroup = mixer.AddGroup("SFX");
-            var voiceGroup = mixer.AddGroup("Voice");
-
-            // Set parent groups
-            musicGroup.outputAudioMixerGroup = masterGroup;
-            sfxGroup.outputAudioMixerGroup = masterGroup;
-            voiceGroup.outputAudioMixerGroup = masterGroup;
-
-            // Expose parameters
-            mixer.ExposeParameter("MasterVolume");
-            mixer.ExposeParameter("MusicVolume");
-            mixer.ExposeParameter("SFXVolume");
-            mixer.ExposeParameter("VoiceVolume");
-
-            // Set default values
-            masterGroup.audioMixer.SetFloat("MasterVolume", 0f);
-            musicGroup.audioMixer.SetFloat("MusicVolume", -1.58f); // ~0.8
-            sfxGroup.audioMixer.SetFloat("SFXVolume", 0f);
-            voiceGroup.audioMixer.SetFloat("VoiceVolume", 0f);
-
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-            _importResults.Add($"AudioMixer created: {mixerPath}");
-            
-            // Create snapshot for ducking
-            CreateDuckingSnapshot(mixer);
+            // Unity provides no public API to create AudioMixer assets in code
+            // (AudioMixer.CreateAudioMixer / AddGroup / ExposeParameter do not exist).
+            // Author 'Assets/Audio/GameAudioMixer.mixer' manually with Master/Music/SFX/Voice
+            // groups and MasterVolume/MusicVolume/SFXVolume/VoiceVolume exposed parameters.
+            UnityEngine.Debug.LogWarning("[AudioImporter] CreateAudioMixer skipped: no public Unity API to create AudioMixer assets. Create 'Assets/Audio/GameAudioMixer.mixer' manually.");
+            _importResults.Add("SKIP: CreateAudioMixer not supported by Unity API - create mixer manually (see log).");
         }
 
         private void CreateDuckingSnapshot(AudioMixer mixer)
         {
-            var snapshot = mixer.AddSnapshot("Ducked");
-            snapshot.TransitionTo(0.5f);
-            
-            // Lower music and SFX when voice plays
-            mixer.SetFloat("MusicVolume", -20f); // -20dB
-            mixer.SetFloat("SFXVolume", -10f);   // -10dB
-            mixer.SetFloat("VoiceVolume", 0f);   // Full volume
+            // No public API (AudioMixer.AddSnapshot does not exist). Graceful skip.
+            UnityEngine.Debug.LogWarning("[AudioImporter] CreateDuckingSnapshot skipped: no public Unity API.");
         }
     }
 }

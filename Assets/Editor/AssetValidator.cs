@@ -329,8 +329,7 @@ namespace CRClone.Editor
 
         private void ValidateAudio(UnityEditor.AudioImporter importer, string path)
         {
-            var settings = new AudioImporterSampleSettings();
-            importer.GetOverrideSampleSettings("Standalone", out settings);
+            var settings = importer.GetOverrideSampleSettings("Standalone");
             
             if (path.Contains("/Music/") && settings.loadType != AudioClipLoadType.Streaming)
             {
@@ -354,7 +353,7 @@ namespace CRClone.Editor
                 });
             }
 
-            if (path.Contains("/SFX/") && !settings.forceToMono)
+            if (path.Contains("/SFX/") && !importer.forceToMono)
             {
                 _issues.Add(new ValidationIssue
                 {

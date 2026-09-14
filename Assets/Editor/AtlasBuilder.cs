@@ -239,7 +239,7 @@ namespace CRClone.Editor
             var jsonPath = $"{_outputFolder}/{_atlasName}.json";
             if (File.Exists(jsonPath))
             {
-                var jsonImporter = AssetImporter.GetAtPath(jsonPath) as TextImporter;
+                var jsonImporter = AssetImporter.GetAtPath(jsonPath) as AssetImporter;
                 // JSON doesn't need special import settings
             }
         }
