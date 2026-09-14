@@ -254,19 +254,19 @@ namespace CRClone.UI
         private void InitializeLobby(GameObject screen)
         {
             var battle1v1 = screen.transform.Find("Battle1v1")?.GetComponent<Button>();
-            battle1v1?.onClick.AddListener(() => StartMatchmaking(BattleType.Ladder));
+            battle1v1?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
 
             var battle2v2 = screen.transform.Find("Battle2v2")?.GetComponent<Button>();
-            battle2v2?.onClick.AddListener(() => StartMatchmaking(BattleType.TwoVTwo));
+            battle2v2?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
 
             var tournament = screen.transform.Find("Tournament")?.GetComponent<Button>();
-            tournament?.onClick.AddListener(() => StartMatchmaking(BattleType.Tournament));
+            tournament?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
 
             var friendly = screen.transform.Find("Friendly")?.GetComponent<Button>();
-            friendly?.onClick.AddListener(() => StartMatchmaking(BattleType.Friendly));
+            friendly?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
 
             var practice = screen.transform.Find("Practice")?.GetComponent<Button>();
-            practice?.onClick.AddListener(() => StartMatchmaking(BattleType.Practice));
+            practice?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
 
             var deckBuilderBtn = screen.transform.Find("DeckBuilderButton")?.GetComponent<Button>();
             deckBuilderBtn?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.DeckBuilder));
@@ -275,7 +275,7 @@ namespace CRClone.UI
             lobbyScreen?.Initialize();
         }
 
-        private void StartMatchmaking(BattleType type)
+        private void StartMatchmaking(CRClone.Network.BattleType type)
         {
             Services.Get<NetworkClient>().Send(new NetworkClient.MatchmakingRequest { battleType = type });
             Services.Get<GameManager>().ChangeState(GameState.Matchmaking);

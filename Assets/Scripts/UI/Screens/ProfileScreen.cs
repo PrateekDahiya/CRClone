@@ -34,6 +34,8 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _settingsButton;
         [SerializeField] private Button _backButton;
 
+        private bool _isInitialized;
+
         private void Awake()
         {
             InitializeComponents();
@@ -41,9 +43,18 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
+            if (_isInitialized) return;
+
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
             _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
             _changeNameButton?.onClick.AddListener(OnChangeName);
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void OnEnable()

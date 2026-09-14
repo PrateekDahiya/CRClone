@@ -56,6 +56,7 @@ namespace CRClone.UI.Screens
         private ClanTab _currentTab = ClanTab.Chat;
         private List<ClanMember> _members = new List<ClanMember>();
         private List<ChatMessage> _messages = new List<ChatMessage>();
+        private bool _isInitialized;
 
         public enum ClanTab
         {
@@ -73,6 +74,8 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
+            if (_isInitialized) return;
+
             _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
             _chatTab?.onClick.AddListener(() => SwitchTab(ClanTab.Chat));
@@ -87,6 +90,13 @@ namespace CRClone.UI.Screens
             _leaveClanButton?.onClick.AddListener(OnLeaveClan);
 
             LoadClanData();
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void OnEnable()
