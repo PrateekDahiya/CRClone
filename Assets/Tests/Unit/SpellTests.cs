@@ -17,7 +17,7 @@ namespace CRClone.Tests.Unit
         {
             InitializeSimulation(TestDecks.SpellHeavyDeck, TestDecks.BalancedDeck);
 
-            var musks = new List<Unit>();
+            var musks = new List<CRClone.Battle.Simulation.Unit>();
             for (int i = 0; i < 3; i++)
                 musks.Add(PlayCard(2, 54, new Vector2(9 + i, 24)));
 
