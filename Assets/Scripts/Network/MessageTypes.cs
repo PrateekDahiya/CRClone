@@ -418,6 +418,14 @@ namespace CRClone.Network
         [ProtoMember(1)] public string newName { get; set; }
     }
 
+    // Shop (consumed by ShopScreen)
+    [ProtoContract]
+    public class ShopPurchaseRequest
+    {
+        [ProtoMember(1)] public string offerId;
+        [ProtoMember(2)] public string currency;
+    }
+
     // Clan (consumed by ClanScreen)
     [ProtoContract]
     public class ClanChatMessage

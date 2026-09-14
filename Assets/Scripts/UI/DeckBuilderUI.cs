@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -411,7 +412,7 @@ namespace CRClone.UI
                 }
 
                 Array.Copy(_currentDeck, _originalDeck, 8);
-                Services.Get<NetworkClient>().Send(new SaveDeckRequest { cardIds = _currentDeck });
+                Services.Get<NetworkClient>().Send(new SaveDeckRequest { cardIds = _currentDeck.Select(id => (uint)id).ToArray() });
                 EventBus.RaiseToast("Deck saved!");
                 UISoundPlayer.Instance?.PlaySuccess();
             }
