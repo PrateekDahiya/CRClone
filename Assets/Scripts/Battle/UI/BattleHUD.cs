@@ -369,7 +369,7 @@ namespace CRClone.Battle.UI
         {
             UISoundPlayer.Instance?.PlayButtonClick();
 
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ConcedeConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ConcedeConfirmModal"));
         }
 
         public void UpdateConnectedPlayers(System.Collections.Generic.List<PlayerInfo> players)
