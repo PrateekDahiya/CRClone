@@ -36,7 +36,7 @@ namespace CRClone.Tests.Unit
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
 
             var knight = PlayCard(1, 89, new Vector2(9, 8));
-            var goblins = new List<Unit>();
+            var goblins = new List<CRClone.Battle.Simulation.Unit>();
             for (int i = 0; i < 5; i++)
                 goblins.Add(PlayCard(2, 91, new Vector2(8 + i * 0.5f, 20)));
             Assert.IsNotNull(knight);
@@ -75,7 +75,7 @@ namespace CRClone.Tests.Unit
             InitializeSimulation(TestDecks.BalancedDeck, TestDecks.BalancedDeck);
 
             var wizard = PlayCard(1, 21, new Vector2(9, 5));
-            var skeletons = new List<Unit>();
+            var skeletons = new List<CRClone.Battle.Simulation.Unit>();
             for (int i = 0; i < 3; i++)
                 skeletons.Add(PlayCard(2, 92, new Vector2(9 + i * 0.5f, 20)));
             Assert.IsNotNull(wizard);

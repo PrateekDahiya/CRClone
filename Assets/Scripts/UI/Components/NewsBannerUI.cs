@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.UI.Animation;
+using CRClone.Core;
 
 namespace CRClone.UI.Components
 {
@@ -27,8 +28,8 @@ namespace CRClone.UI.Components
 
         public void Initialize()
         {
-            _actionButton?.onClick.AddListener(OnActionClicked);
-            _dismissButton?.onClick.AddListener(OnDismissClicked);
+            _actionButton.OrNull()?.onClick.AddListener(OnActionClicked);
+            _dismissButton.OrNull()?.onClick.AddListener(OnDismissClicked);
             Hide();
         }
 
@@ -42,10 +43,10 @@ namespace CRClone.UI.Components
             if (_bannerImage != null && news.bannerSprite != null) _bannerImage.sprite = news.bannerSprite;
 
             bool hasAction = !string.IsNullOrEmpty(news.actionText) && news.onActionClicked != null;
-            _actionButton?.gameObject.SetActive(hasAction);
+            _actionButton.OrNull()?.gameObject.SetActive(hasAction);
             if (_actionButtonText != null) _actionButtonText.text = news.actionText;
 
-            _dontShowAgainToggle?.gameObject.SetActive(news.showDontShowAgain);
+            _dontShowAgainToggle.OrNull()?.gameObject.SetActive(news.showDontShowAgain);
             if (_dontShowAgainToggle != null)
             {
                 _dontShowAgainToggle.isOn = false;
@@ -66,7 +67,7 @@ namespace CRClone.UI.Components
             }
             else
             {
-                _bannerRoot?.SetActive(false);
+                _bannerRoot.OrNull()?.SetActive(false);
                 _isVisible = false;
             }
         }
@@ -75,7 +76,7 @@ namespace CRClone.UI.Components
         {
             if (_isVisible) return;
 
-            _bannerRoot?.SetActive(true);
+            _bannerRoot.OrNull()?.SetActive(true);
             _isVisible = true;
 
             if (AccessibilityManager.Instance?.ReduceMotion != true)
@@ -130,7 +131,7 @@ namespace CRClone.UI.Components
 
             canvasGroup.alpha = 0f;
             rect.anchoredPosition = endPos;
-            _bannerRoot?.SetActive(false);
+            _bannerRoot.OrNull()?.SetActive(false);
             _isVisible = false;
         }
 

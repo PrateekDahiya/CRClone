@@ -4,8 +4,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Network;
+using CRClone.Systems;
 using CRClone.UI.Animation;
+using CRClone.UI.Components;
 
 namespace CRClone.UI.Screens
 {
@@ -42,6 +45,7 @@ namespace CRClone.UI.Screens
         private float _dailyRefreshTime = 86400f; // 24 hours
         private float _specialOfferTime = 3600f; // 1 hour
         private Coroutine _timerCoroutine;
+        private bool _isInitialized;
 
         public enum ShopTab
         {
@@ -59,16 +63,25 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            if (_isInitialized) return;
 
-            _dailyTab?.onClick.AddListener(() => SwitchTab(ShopTab.Daily));
-            _specialTab?.onClick.AddListener(() => SwitchTab(ShopTab.Special));
-            _chestsTab?.onClick.AddListener(() => SwitchTab(ShopTab.Chests));
-            _gemsTab?.onClick.AddListener(() => SwitchTab(ShopTab.Gems));
-            _wildCardsTab?.onClick.AddListener(() => SwitchTab(ShopTab.WildCards));
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+
+            _dailyTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Daily));
+            _specialTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Special));
+            _chestsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Chests));
+            _gemsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.Gems));
+            _wildCardsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ShopTab.WildCards));
 
             LoadOffers();
             UpdateCurrency();
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void OnEnable()
@@ -108,11 +121,11 @@ namespace CRClone.UI.Screens
 
         private void ShowTabContent(ShopTab tab)
         {
-            _dailyContent?.gameObject.SetActive(tab == ShopTab.Daily);
-            _specialContent?.gameObject.SetActive(tab == ShopTab.Special);
-            _chestsContent?.gameObject.SetActive(tab == ShopTab.Chests);
-            _gemsContent?.gameObject.SetActive(tab == ShopTab.Gems);
-            _wildCardsContent?.gameObject.SetActive(tab == ShopTab.WildCards);
+            _dailyContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Daily);
+            _specialContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Special);
+            _chestsContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Chests);
+            _gemsContent.OrNull()?.gameObject.SetActive(tab == ShopTab.Gems);
+            _wildCardsContent.OrNull()?.gameObject.SetActive(tab == ShopTab.WildCards);
         }
 
         private void LoadOffers()
@@ -249,10 +262,10 @@ namespace CRClone.UI.Screens
             UISoundPlayer.Instance?.PlaySuccess();
 
             // Send to server
-            Services.Get<NetworkClient>().Send(new NetworkClient.ShopPurchaseRequest 
+            Services.Get<NetworkClient>().Send(new ShopPurchaseRequest 
             { 
                 offerId = offer.id, 
-                currency = offer.costType 
+                currencyType = offer.costType.ToString().ToLower() 
             });
         }
 

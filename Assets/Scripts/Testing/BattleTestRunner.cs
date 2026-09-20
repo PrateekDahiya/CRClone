@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Battle.Simulation;
 
 namespace CRClone.Testing

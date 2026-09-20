@@ -3,7 +3,22 @@ guid: 3b0a45489507a9b449474590157270ca
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - _mainMenuScreen: {fileID: 1094878911601018305, guid: e919c34d189ce4c623ff3413178dd680, type: 3}
+  - _lobbyScreen: {instanceID: 0}
+  - _deckBuilderScreen: {instanceID: 0}
+  - _shopScreen: {instanceID: 0}
+  - _clanScreen: {instanceID: 0}
+  - _profileScreen: {instanceID: 0}
+  - _settingsScreen: {instanceID: 0}
+  - _battleResultScreen: {instanceID: 0}
+  - _chestUnlockScreen: {instanceID: 0}
+  - _toastPrefab: {instanceID: 0}
+  - _toastContainer: {instanceID: 0}
+  - _loadingOverlay: {instanceID: 0}
+  - _responsiveLayout: {instanceID: 0}
+  - _accessibilityManager: {instanceID: 0}
+  - _localizationManager: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

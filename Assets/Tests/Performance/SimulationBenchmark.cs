@@ -91,12 +91,12 @@ namespace CRClone.Tests.Performance
             uint id = (uint)field.GetValue(Simulation);
             field.SetValue(Simulation, id + 1);
 
-            var unit = new Unit(id, playerId, cardData, stats, position, 11);
+            var unit = new CRClone.Battle.Simulation.Unit(id, playerId, cardData, stats, position, 11);
             var unitsField = typeof(BattleSimulation).GetField("_units",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var entitiesField = typeof(BattleSimulation).GetField("_entities",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            ((List<Unit>)unitsField.GetValue(Simulation)).Add(unit);
+            ((List<CRClone.Battle.Simulation.Unit>)unitsField.GetValue(Simulation)).Add(unit);
             ((Dictionary<uint, Entity>)entitiesField.GetValue(Simulation))[unit.Id] = unit;
         }
 

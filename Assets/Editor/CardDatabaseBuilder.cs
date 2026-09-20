@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 using CRClone.Data;
+using CRClone.Core;
 
 namespace CRClone.Editor
 {

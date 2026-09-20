@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
+using CRClone.Systems;
 using CRClone.UI.Animation;
 
 namespace CRClone.UI.Screens
@@ -43,8 +45,8 @@ namespace CRClone.UI.Screens
 
         private void SetupUI()
         {
-            _continueButton?.onClick.AddListener(OnContinue);
-            _openAnotherButton?.onClick.AddListener(OnOpenAnother);
+            _continueButton.OrNull()?.onClick.AddListener(OnContinue);
+            _openAnotherButton.OrNull()?.onClick.AddListener(OnOpenAnother);
 
             if (_chestNameText != null)
             {

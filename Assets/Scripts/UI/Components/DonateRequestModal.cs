@@ -19,9 +19,9 @@ namespace CRClone.UI.Components
 
         private void Awake()
         {
-            _confirmButton?.onClick.AddListener(OnConfirm);
-            _cancelButton?.onClick.AddListener(OnCancel);
-            _countSlider?.onValueChanged.AddListener(OnCountChanged);
+            _confirmButton.OrNull()?.onClick.AddListener(OnConfirm);
+            _cancelButton.OrNull()?.onClick.AddListener(OnCancel);
+            _countSlider.OrNull()?.onValueChanged.AddListener(OnCountChanged);
         }
 
         public void Initialize(Action<int, int> onConfirmed)
@@ -73,7 +73,7 @@ namespace CRClone.UI.Components
             if (_cardDropdown == null || _cardDropdown.options.Count == 0) return;
 
             int selectedIndex = _cardDropdown.value;
-            int count = Mathf.RoundToInt(_countSlider?.value ?? 1);
+            int count = Mathf.RoundToInt(_countSlider.OrNull()?.value ?? 1);
 
             // Get the card ID from the selected index
             var playerData = Services.Get<GameManager>().LocalPlayer;

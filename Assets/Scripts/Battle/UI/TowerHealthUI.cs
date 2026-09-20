@@ -2,7 +2,9 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Battle.Simulation;
+using CRClone.UI;
 using CRClone.UI.Animation;
+using CRClone.Core;
 
 namespace CRClone.Battle.UI
 {
@@ -98,17 +100,17 @@ namespace CRClone.Battle.UI
         {
             if (_tower.Type == TowerType.King)
             {
-                _crownIcon?.SetActive(false);
-                _kingCrownIcon?.SetActive(_tower.IsDead);
+                _crownIcon.OrNull()?.SetActive(false);
+                _kingCrownIcon.OrNull()?.SetActive(_tower.IsDead);
             }
             else
             {
-                _crownIcon?.SetActive(_tower.IsDead);
+                _crownIcon.OrNull()?.SetActive(_tower.IsDead);
                 if (_crownImage != null)
                 {
                     _crownImage.sprite = _tower.IsDead ? _crownFilled : _crownEmpty;
                 }
-                _kingCrownIcon?.SetActive(false);
+                _kingCrownIcon.OrNull()?.SetActive(false);
             }
         }
 
@@ -168,7 +170,7 @@ namespace CRClone.Battle.UI
             transform.localPosition = originalPos;
         }
 
-        private void PlayDestroyAnimation()
+        public void PlayDestroyAnimation()
         {
             _isDestroyed = true;
             if (_destroyCoroutine != null) StopCoroutine(_destroyCoroutine);

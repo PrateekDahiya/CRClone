@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Battle.Simulation;
+using CRClone.UI;
 using CRClone.UI.Animation;
 
 namespace CRClone.Battle.UI
@@ -55,10 +56,10 @@ namespace CRClone.Battle.UI
         {
             _simulation = Services.Get<GameManager>().BattleSim;
 
-            _pauseButton?.onClick.AddListener(OnPauseClicked);
-            _resumeButton?.onClick.AddListener(OnResumeClicked);
-            _settingsButton?.onClick.AddListener(OnSettingsClicked);
-            _concedeButton?.onClick.AddListener(OnConcedeClicked);
+            _pauseButton.OrNull()?.onClick.AddListener(OnPauseClicked);
+            _resumeButton.OrNull()?.onClick.AddListener(OnResumeClicked);
+            _settingsButton.OrNull()?.onClick.AddListener(OnSettingsClicked);
+            _concedeButton.OrNull()?.onClick.AddListener(OnConcedeClicked);
 
             if (_pauseMenu != null) _pauseMenu.SetActive(false);
             if (_overtimeLabel != null) _overtimeLabel.gameObject.SetActive(false);
@@ -345,7 +346,7 @@ namespace CRClone.Battle.UI
         private void OnPauseClicked()
         {
             _isPaused = true;
-            _pauseMenu?.SetActive(true);
+            _pauseMenu.OrNull()?.SetActive(true);
             Time.timeScale = 0f;
             UISoundPlayer.Instance?.PlayScreenOpen();
         }
@@ -353,7 +354,7 @@ namespace CRClone.Battle.UI
         public void OnResumeClicked()
         {
             _isPaused = false;
-            _pauseMenu?.SetActive(false);
+            _pauseMenu.OrNull()?.SetActive(false);
             Time.timeScale = 1f;
             UISoundPlayer.Instance?.PlayScreenClose();
         }
@@ -368,7 +369,7 @@ namespace CRClone.Battle.UI
         {
             UISoundPlayer.Instance?.PlayButtonClick();
 
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ConcedeConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ConcedeConfirmModal"));
         }
 
         public void UpdateConnectedPlayers(System.Collections.Generic.List<PlayerInfo> players)
@@ -393,7 +394,7 @@ namespace CRClone.Battle.UI
 
         public void ShowBattleResult()
         {
-            _pauseButton?.gameObject.SetActive(false);
+            _pauseButton.OrNull()?.gameObject.SetActive(false);
             UIManager.Instance?.ShowBattleResult(new EventBus.BattleEndedEvent
             {
                 result = _p1CrownsCount > _p2CrownsCount ? BattleStatus.Player1Won : 

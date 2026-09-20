@@ -148,12 +148,19 @@ def main():
         "projectile": {"ProjectileView", "ProjectilePoolable"},
         "tower": {"TowerView"},
     }
+    # Unity YAML class ids, verified against 2022.3.20f1. Keep in sync with the
+    # CID_* constants in run_prefab_generator.py.
+    ANIMATOR, SPRITE_RENDERER, RIGIDBODY_2D = 95, 212, 50
+    CIRCLE_COLLIDER_2D, BOX_COLLIDER_2D = 58, 61
+    TRAIL_RENDERER, LINE_RENDERER = 96, 120
+    PARTICLE_SYSTEM, PARTICLE_SYSTEM_RENDERER = 198, 199
     builtin_needed = {
-        "unit": {95, 212, 60, 50, 109},
-        "building": {95, 212, 59, 50},
-        "spell": {100, 26},
-        "projectile": {212, 110, 60, 50, 100, 26},
-        "tower": {95, 212, 59, 50},
+        "unit": {ANIMATOR, SPRITE_RENDERER, CIRCLE_COLLIDER_2D, RIGIDBODY_2D, LINE_RENDERER},
+        "building": {ANIMATOR, SPRITE_RENDERER, BOX_COLLIDER_2D, RIGIDBODY_2D},
+        "spell": {PARTICLE_SYSTEM, PARTICLE_SYSTEM_RENDERER},
+        "projectile": {SPRITE_RENDERER, TRAIL_RENDERER, CIRCLE_COLLIDER_2D, RIGIDBODY_2D,
+                       PARTICLE_SYSTEM, PARTICLE_SYSTEM_RENDERER},
+        "tower": {ANIMATOR, SPRITE_RENDERER, BOX_COLLIDER_2D, RIGIDBODY_2D},
     }
 
     for rel, (kind, card) in sorted(expected.items()):

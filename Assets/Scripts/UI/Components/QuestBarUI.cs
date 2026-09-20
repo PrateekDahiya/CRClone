@@ -171,15 +171,15 @@ namespace CRClone.UI.Components
             }
 
             bool isComplete = current >= max;
-            _claimButton?.gameObject.SetActive(isComplete);
-            _inProgressBadge?.SetActive(!isComplete);
+            _claimButton.OrNull()?.gameObject.SetActive(isComplete);
+            _inProgressBadge.OrNull()?.SetActive(!isComplete);
         }
 
         public void SetCompleted(bool completed)
         {
-            _completedBadge?.SetActive(completed);
-            _inProgressBadge?.SetActive(!completed);
-            _claimButton?.gameObject.SetActive(completed);
+            _completedBadge.OrNull()?.SetActive(completed);
+            _inProgressBadge.OrNull()?.SetActive(!completed);
+            _claimButton.OrNull()?.gameObject.SetActive(completed);
         }
 
         public void PlayClaimAnimation()

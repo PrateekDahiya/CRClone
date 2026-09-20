@@ -18,7 +18,7 @@ namespace CRClone.Network
         private const float RECONNECT_JITTER = 0.5f;
 
         private uint _lastKnownServerTick = 0;
-        private GameManager.BattleData _currentBattleData;
+        private BattleData _currentBattleData;
         private bool _wasInBattle = false;
 
         public event Action OnReconnectionStarted;
@@ -35,16 +35,16 @@ namespace CRClone.Network
             }
 
             // Subscribe to network events
-            EventBus.On<NetworkDisconnectedEvent>(HandleDisconnected);
-            EventBus.On<NetworkConnectedEvent>(HandleConnected);
-            EventBus.On<ReconciliationEvent>(HandleReconciliation);
+            EventBus.On<EventBus.NetworkDisconnectedEvent>(HandleDisconnected);
+            EventBus.On<EventBus.NetworkConnectedEvent>(HandleConnected);
+            EventBus.On<EventBus.ReconciliationEvent>(HandleReconciliation);
         }
 
         private void OnDestroy()
         {
-            EventBus.Off<NetworkDisconnectedEvent>(HandleDisconnected);
-            EventBus.Off<NetworkConnectedEvent>(HandleConnected);
-            EventBus.Off<ReconciliationEvent>(HandleReconciliation);
+            EventBus.Off<EventBus.NetworkDisconnectedEvent>(HandleDisconnected);
+            EventBus.Off<EventBus.NetworkConnectedEvent>(HandleConnected);
+            EventBus.Off<EventBus.ReconciliationEvent>(HandleReconciliation);
         }
 
         public void SetCredentials(string serverUrl, string authToken)
@@ -53,7 +53,7 @@ namespace CRClone.Network
             _authToken = authToken;
         }
 
-        public void SetBattleContext(GameManager.BattleData battleData)
+        public void SetBattleContext(BattleData battleData)
         {
             _currentBattleData = battleData;
             _wasInBattle = true;
@@ -71,7 +71,7 @@ namespace CRClone.Network
             _lastKnownServerTick = serverTick;
         }
 
-        private void HandleDisconnected(NetworkDisconnectedEvent evt)
+        private void HandleDisconnected(EventBus.NetworkDisconnectedEvent evt)
         {
             if (!_wasInBattle && !_networkClient.IsConnected)
             {
@@ -86,7 +86,7 @@ namespace CRClone.Network
             ScheduleReconnect();
         }
 
-        private void HandleConnected(NetworkConnectedEvent evt)
+        private void HandleConnected(EventBus.NetworkConnectedEvent evt)
         {
             if (_reconnectAttempts > 0)
             {
@@ -103,12 +103,12 @@ namespace CRClone.Network
             }
         }
 
-        private void HandleReconciliation(ReconciliationEvent evt)
+        private void HandleReconciliation(EventBus.ReconciliationEvent evt)
         {
             _lastKnownServerTick = evt.serverTick;
         }
 
-        private void ScheduleReconnect()
+        public void ScheduleReconnect()
         {
             if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
             {
@@ -149,7 +149,7 @@ namespace CRClone.Network
         private void ReturnToMainMenu()
         {
             // Notify UI to show disconnect screen
-            EventBus.Raise(new NetworkDisconnectedEvent 
+            EventBus.Raise(new EventBus.NetworkDisconnectedEvent 
             { 
                 reason = "Connection lost - returning to menu", 
                 wasClean = false 

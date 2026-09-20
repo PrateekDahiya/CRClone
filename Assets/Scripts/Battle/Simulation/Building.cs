@@ -634,7 +634,7 @@ namespace CRClone.Battle.Simulation
                 _rampStage = Math.Min(_rampStage + 1, 5);
 
                 int damage = GetRampDamage(_rampStage);
-                Target.TakeDamage(damage, DamageType.Beam, SourceId);
+                Target.TakeDamage(damage, DamageType.Beam, Source.Id);
             }
 
             // Beam doesn't travel - instant

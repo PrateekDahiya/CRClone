@@ -2,6 +2,9 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
+using CRClone.Network;
+using CRClone.UI.Components;
 
 namespace CRClone.UI.Screens
 {
@@ -31,6 +34,8 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _settingsButton;
         [SerializeField] private Button _backButton;
 
+        private bool _isInitialized;
+
         private void Awake()
         {
             InitializeComponents();
@@ -38,9 +43,18 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
-            _settingsButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
-            _changeNameButton?.onClick.AddListener(OnChangeName);
+            if (_isInitialized) return;
+
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _settingsButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.Settings));
+            _changeNameButton.OrNull()?.onClick.AddListener(OnChangeName);
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void OnEnable()
@@ -77,7 +91,7 @@ namespace CRClone.UI.Screens
             {
                 foreach (var kvp in playerData.collection)
                 {
-                    if (kvp.Value > 0) cardsOwned++;
+                    if (kvp.Value.count > 0) cardsOwned++;
                 }
             }
             _cardsCollectedText.text = $"{cardsOwned}/100";
@@ -104,7 +118,7 @@ namespace CRClone.UI.Screens
             return (long)(level * level * 1000);
         }
 
-        private void RefreshBattleLog(GameManager.PlayerData playerData)
+        private void RefreshBattleLog(PlayerData playerData)
         {
             if (_battleLogContainer == null || _battleLogItemPrefab == null) return;
 
@@ -131,8 +145,8 @@ namespace CRClone.UI.Screens
 
         private void OnChangeName()
         {
-            var modal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ChangeNameModal"));
-            var modalUI = modal?.GetComponent<ChangeNameModal>();
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/ChangeNameModal"));
+            var modalUI = UIManager.Instance?.GetComponentInChildren<ChangeNameModal>();
             if (modalUI != null)
             {
                 modalUI.Initialize(OnNameChanged);
@@ -146,7 +160,7 @@ namespace CRClone.UI.Screens
             {
                 playerData.playerName = newName;
                 _playerNameText.text = newName;
-                Services.Get<NetworkClient>().Send(new NetworkClient.ChangeNameRequest { newName = newName });
+                Services.Get<NetworkClient>().Send(new ChangeNameRequest { newName = newName });
             }
         }
     }
@@ -180,7 +194,7 @@ namespace CRClone.UI.Screens
                 _replayButton.onClick.RemoveAllListeners();
                 _replayButton.onClick.AddListener(() => 
                 {
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ReplayRequest { replayId = entry.replayId });
+                    Services.Get<NetworkClient>().Send(new ReplayRequest { replayId = entry.replayId });
                 });
             }
         }
@@ -194,7 +208,7 @@ namespace CRClone.UI.Screens
         public int playerCrowns;
         public int opponentCrowns;
         public int trophyChange;
-        public BattleType battleType;
+        public CRClone.Core.BattleType battleType;
         public long replayId;
     }
 }

@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.UI;
 
 namespace CRClone.UI.Screens
 {
@@ -63,6 +64,7 @@ namespace CRClone.UI.Screens
         [SerializeField] private Button _resetToDefaultsButton;
 
         private SettingsTab _currentTab = SettingsTab.Graphics;
+        private bool _isInitialized;
 
         public enum SettingsTab
         {
@@ -80,14 +82,16 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
-            _resetToDefaultsButton?.onClick.AddListener(ResetToDefaults);
+            if (_isInitialized) return;
 
-            _graphicsTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Graphics));
-            _audioTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Audio));
-            _gameplayTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Gameplay));
-            _privacyTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Privacy));
-            _accessibilityTab?.onClick.AddListener(() => SwitchTab(SettingsTab.Accessibility));
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            _resetToDefaultsButton.OrNull()?.onClick.AddListener(ResetToDefaults);
+
+            _graphicsTab.OrNull()?.onClick.AddListener(() => SwitchTab(SettingsTab.Graphics));
+            _audioTab.OrNull()?.onClick.AddListener(() => SwitchTab(SettingsTab.Audio));
+            _gameplayTab.OrNull()?.onClick.AddListener(() => SwitchTab(SettingsTab.Gameplay));
+            _privacyTab.OrNull()?.onClick.AddListener(() => SwitchTab(SettingsTab.Privacy));
+            _accessibilityTab.OrNull()?.onClick.AddListener(() => SwitchTab(SettingsTab.Accessibility));
 
             SetupGraphicsSettings();
             SetupAudioSettings();
@@ -97,6 +101,13 @@ namespace CRClone.UI.Screens
 
             LoadSettings();
             SwitchTab(SettingsTab.Graphics);
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void SetupGraphicsSettings()
@@ -129,7 +140,7 @@ namespace CRClone.UI.Screens
                 var options = new System.Collections.Generic.List<string>();
                 foreach (var res in resolutions)
                 {
-                    options.Add($"{res.width}x{res.height} @{res.refreshRate}Hz");
+                    options.Add($"{res.width}x{res.height} @{Mathf.RoundToInt((float)res.refreshRateRatio.value)}Hz");
                 }
                 if (options.Count == 0) options.Add("1920x1080 @60Hz");
                 _resolutionDropdown.AddOptions(options);
@@ -289,49 +300,49 @@ namespace CRClone.UI.Screens
 
         private void ShowTabContent(SettingsTab tab)
         {
-            _graphicsContent?.gameObject.SetActive(tab == SettingsTab.Graphics);
-            _audioContent?.gameObject.SetActive(tab == SettingsTab.Audio);
-            _gameplayContent?.gameObject.SetActive(tab == SettingsTab.Gameplay);
-            _privacyContent?.gameObject.SetActive(tab == SettingsTab.Privacy);
-            _accessibilityContent?.gameObject.SetActive(tab == SettingsTab.Accessibility);
+            _graphicsContent.OrNull()?.gameObject.SetActive(tab == SettingsTab.Graphics);
+            _audioContent.OrNull()?.gameObject.SetActive(tab == SettingsTab.Audio);
+            _gameplayContent.OrNull()?.gameObject.SetActive(tab == SettingsTab.Gameplay);
+            _privacyContent.OrNull()?.gameObject.SetActive(tab == SettingsTab.Privacy);
+            _accessibilityContent.OrNull()?.gameObject.SetActive(tab == SettingsTab.Accessibility);
         }
 
         private void LoadSettings()
         {
             // Graphics
-            _graphicsQualityDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("graphics_quality", 2));
-            _fpsCapDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("fps_cap", 1));
-            _vSyncToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("vsync", 1) == 1);
-            _resolutionDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("resolution", 0));
-            _fullscreenDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("fullscreen", 1));
+            _graphicsQualityDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("graphics_quality", 2));
+            _fpsCapDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("fps_cap", 1));
+            _vSyncToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("vsync", 1) == 1);
+            _resolutionDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("resolution", 0));
+            _fullscreenDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("fullscreen", 1));
 
             // Audio
-            _masterVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("master_volume", 1f));
-            _musicVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("music_volume", 1f));
-            _sfxVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("sfx_volume", 1f));
-            _voiceVolumeSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("voice_volume", 1f));
-            _muteToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("mute", 0) == 1);
-            _muteOnFocusLossToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("mute_focus_loss", 1) == 1);
+            _masterVolumeSlider.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetFloat("master_volume", 1f));
+            _musicVolumeSlider.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetFloat("music_volume", 1f));
+            _sfxVolumeSlider.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetFloat("sfx_volume", 1f));
+            _voiceVolumeSlider.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetFloat("voice_volume", 1f));
+            _muteToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("mute", 0) == 1);
+            _muteOnFocusLossToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("mute_focus_loss", 1) == 1);
 
             // Gameplay
-            _deployModeDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("deploy_mode", 2));
-            _spellAimingDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("spell_aiming", 2));
-            _autoTargetToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("auto_target", 1) == 1);
-            _leftHandedToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("left_handed", 0) == 1);
-            _cameraShakeToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("camera_shake", 1) == 1);
-            _damageNumbersToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("damage_numbers", 1) == 1);
+            _deployModeDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("deploy_mode", 2));
+            _spellAimingDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("spell_aiming", 2));
+            _autoTargetToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("auto_target", 1) == 1);
+            _leftHandedToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("left_handed", 0) == 1);
+            _cameraShakeToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("camera_shake", 1) == 1);
+            _damageNumbersToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("damage_numbers", 1) == 1);
 
             // Privacy
-            _showProfileToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("show_profile", 1) == 1);
-            _showOnlineStatusToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("show_online", 1) == 1);
-            _allowFriendRequestsToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("allow_friends", 1) == 1);
-            _allowClanInvitesToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("allow_clan_invites", 1) == 1);
+            _showProfileToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("show_profile", 1) == 1);
+            _showOnlineStatusToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("show_online", 1) == 1);
+            _allowFriendRequestsToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("allow_friends", 1) == 1);
+            _allowClanInvitesToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("allow_clan_invites", 1) == 1);
 
             // Accessibility
-            _highContrastToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("high_contrast", 0) == 1);
-            _reduceMotionToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("reduce_motion", 0) == 1);
-            _textScaleSlider?.SetValueWithoutNotify(PlayerPrefs.GetFloat("text_scale", 1f));
-            _colorBlindDropdown?.SetValueWithoutNotify(PlayerPrefs.GetInt("color_blind", 0));
+            _highContrastToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("high_contrast", 0) == 1);
+            _reduceMotionToggle.OrNull()?.SetIsOnWithoutNotify(PlayerPrefs.GetInt("reduce_motion", 0) == 1);
+            _textScaleSlider.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetFloat("text_scale", 1f));
+            _colorBlindDropdown.OrNull()?.SetValueWithoutNotify(PlayerPrefs.GetInt("color_blind", 0));
 
             ApplySettings();
         }
@@ -347,25 +358,25 @@ namespace CRClone.UI.Screens
 
         private void ApplyGraphicsSettings()
         {
-            QualitySettings.SetQualityLevel(_graphicsQualityDropdown?.value ?? 2);
+            QualitySettings.SetQualityLevel(_graphicsQualityDropdown.OrNull()?.value ?? 2);
             
             int[] fpsValues = { 30, 60, 120, -1 };
-            Application.targetFrameRate = fpsValues[_fpsCapDropdown?.value ?? 1];
+            Application.targetFrameRate = fpsValues[_fpsCapDropdown.OrNull()?.value ?? 1];
             
-            QualitySettings.vSyncCount = _vSyncToggle?.isOn == true ? 1 : 0;
+            QualitySettings.vSyncCount = _vSyncToggle.OrNull()?.isOn == true ? 1 : 0;
 
             FullScreenMode[] modes = { FullScreenMode.Windowed, FullScreenMode.FullScreenWindow, FullScreenMode.ExclusiveFullScreen };
-            Screen.fullScreenMode = modes[_fullscreenDropdown?.value ?? 1];
+            Screen.fullScreenMode = modes[_fullscreenDropdown.OrNull()?.value ?? 1];
         }
 
         private void ApplyAudioSettings()
         {
-            if (AudioListener.volume != (_masterVolumeSlider?.value ?? 1f))
+            if (AudioListener.volume != (_masterVolumeSlider.OrNull()?.value ?? 1f))
             {
-                AudioListener.volume = _masterVolumeSlider?.value ?? 1f;
+                AudioListener.volume = _masterVolumeSlider.OrNull()?.value ?? 1f;
             }
             
-            if (_muteToggle?.isOn == true)
+            if (_muteToggle.OrNull()?.isOn == true)
             {
                 AudioListener.volume = 0f;
             }
@@ -385,10 +396,10 @@ namespace CRClone.UI.Screens
         {
             if (AccessibilityManager.Instance != null)
             {
-                AccessibilityManager.Instance.SetHighContrastMode(_highContrastToggle?.isOn ?? false);
-                AccessibilityManager.Instance.SetReduceMotion(_reduceMotionToggle?.isOn ?? false);
-                AccessibilityManager.Instance.SetTextScale(_textScaleSlider?.value ?? 1f);
-                AccessibilityManager.Instance.SetColorBlindMode((AccessibilityManager.ColorBlindMode)(_colorBlindDropdown?.value ?? 0));
+                AccessibilityManager.Instance.SetHighContrastMode(_highContrastToggle.OrNull()?.isOn ?? false);
+                AccessibilityManager.Instance.SetReduceMotion(_reduceMotionToggle.OrNull()?.isOn ?? false);
+                AccessibilityManager.Instance.SetTextScale(_textScaleSlider.OrNull()?.value ?? 1f);
+                AccessibilityManager.Instance.SetColorBlindMode((ColorBlindMode)(_colorBlindDropdown.OrNull()?.value ?? 0));
             }
         }
 
@@ -448,7 +459,7 @@ namespace CRClone.UI.Screens
         private void OnMuteChanged(bool value)
         {
             PlayerPrefs.SetInt("mute", value ? 1 : 0);
-            AudioListener.volume = value ? 0f : (_masterVolumeSlider?.value ?? 1f);
+            AudioListener.volume = value ? 0f : (_masterVolumeSlider.OrNull()?.value ?? 1f);
         }
 
         private void OnMuteOnFocusLossChanged(bool value)
@@ -512,7 +523,7 @@ namespace CRClone.UI.Screens
 
         private void OnDeleteAccount()
         {
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DeleteAccountConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DeleteAccountConfirmModal"));
         }
 
         private void OnHighContrastChanged(bool value)
@@ -547,16 +558,16 @@ namespace CRClone.UI.Screens
             PlayerPrefs.SetInt("color_blind", value);
             if (AccessibilityManager.Instance != null)
             {
-                AccessibilityManager.Instance.SetColorBlindMode((AccessibilityManager.ColorBlindMode)value);
+                AccessibilityManager.Instance.SetColorBlindMode((ColorBlindMode)value);
             }
         }
 
         private void ResetAccessibility()
         {
-            _highContrastToggle?.SetIsOnWithoutNotify(false);
-            _reduceMotionToggle?.SetIsOnWithoutNotify(false);
-            _textScaleSlider?.SetValueWithoutNotify(1f);
-            _colorBlindDropdown?.SetValueWithoutNotify(0);
+            _highContrastToggle.OrNull()?.SetIsOnWithoutNotify(false);
+            _reduceMotionToggle.OrNull()?.SetIsOnWithoutNotify(false);
+            _textScaleSlider.OrNull()?.SetValueWithoutNotify(1f);
+            _colorBlindDropdown.OrNull()?.SetValueWithoutNotify(0);
 
             OnHighContrastChanged(false);
             OnReduceMotionChanged(false);
@@ -571,32 +582,32 @@ namespace CRClone.UI.Screens
             ResetAccessibility();
 
             // Reset graphics
-            _graphicsQualityDropdown?.SetValueWithoutNotify(2);
-            _fpsCapDropdown?.SetValueWithoutNotify(1);
-            _vSyncToggle?.SetIsOnWithoutNotify(true);
-            _fullscreenDropdown?.SetValueWithoutNotify(1);
+            _graphicsQualityDropdown.OrNull()?.SetValueWithoutNotify(2);
+            _fpsCapDropdown.OrNull()?.SetValueWithoutNotify(1);
+            _vSyncToggle.OrNull()?.SetIsOnWithoutNotify(true);
+            _fullscreenDropdown.OrNull()?.SetValueWithoutNotify(1);
 
             // Reset audio
-            _masterVolumeSlider?.SetValueWithoutNotify(1f);
-            _musicVolumeSlider?.SetValueWithoutNotify(1f);
-            _sfxVolumeSlider?.SetValueWithoutNotify(1f);
-            _voiceVolumeSlider?.SetValueWithoutNotify(1f);
-            _muteToggle?.SetIsOnWithoutNotify(false);
-            _muteOnFocusLossToggle?.SetIsOnWithoutNotify(true);
+            _masterVolumeSlider.OrNull()?.SetValueWithoutNotify(1f);
+            _musicVolumeSlider.OrNull()?.SetValueWithoutNotify(1f);
+            _sfxVolumeSlider.OrNull()?.SetValueWithoutNotify(1f);
+            _voiceVolumeSlider.OrNull()?.SetValueWithoutNotify(1f);
+            _muteToggle.OrNull()?.SetIsOnWithoutNotify(false);
+            _muteOnFocusLossToggle.OrNull()?.SetIsOnWithoutNotify(true);
 
             // Reset gameplay
-            _deployModeDropdown?.SetValueWithoutNotify(2);
-            _spellAimingDropdown?.SetValueWithoutNotify(2);
-            _autoTargetToggle?.SetIsOnWithoutNotify(true);
-            _leftHandedToggle?.SetIsOnWithoutNotify(false);
-            _cameraShakeToggle?.SetIsOnWithoutNotify(true);
-            _damageNumbersToggle?.SetIsOnWithoutNotify(true);
+            _deployModeDropdown.OrNull()?.SetValueWithoutNotify(2);
+            _spellAimingDropdown.OrNull()?.SetValueWithoutNotify(2);
+            _autoTargetToggle.OrNull()?.SetIsOnWithoutNotify(true);
+            _leftHandedToggle.OrNull()?.SetIsOnWithoutNotify(false);
+            _cameraShakeToggle.OrNull()?.SetIsOnWithoutNotify(true);
+            _damageNumbersToggle.OrNull()?.SetIsOnWithoutNotify(true);
 
             // Reset privacy
-            _showProfileToggle?.SetIsOnWithoutNotify(true);
-            _showOnlineStatusToggle?.SetIsOnWithoutNotify(true);
-            _allowFriendRequestsToggle?.SetIsOnWithoutNotify(true);
-            _allowClanInvitesToggle?.SetIsOnWithoutNotify(true);
+            _showProfileToggle.OrNull()?.SetIsOnWithoutNotify(true);
+            _showOnlineStatusToggle.OrNull()?.SetIsOnWithoutNotify(true);
+            _allowFriendRequestsToggle.OrNull()?.SetIsOnWithoutNotify(true);
+            _allowClanInvitesToggle.OrNull()?.SetIsOnWithoutNotify(true);
 
             LoadSettings();
             EventBus.RaiseToast("All settings reset to defaults!");

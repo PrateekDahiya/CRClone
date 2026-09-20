@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Data;
+using CRClone.Systems;
 using CRClone.Battle.Simulation;
 using CRClone.UI.Animation;
 
@@ -20,16 +21,16 @@ namespace CRClone.Battle.UI
         [SerializeField] private Text _nextCardLabel;
 
         [Header("Animation Settings")]
-        [SerializeField] private float _cardSelectScale = 1.2f;
+        [SerializeField] public float _cardSelectScale = 1.2f;
         [SerializeField] private float _selectionAnimationDuration = 0.15f;
-        [SerializeField] private float _deployAnimationDuration = 0.2f;
-        [SerializeField] private float _cardDrawDuration = 0.3f;
-        [SerializeField] private AnimationCurve _selectionCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
-        [SerializeField] private AnimationCurve _deployCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        [SerializeField] public float _deployAnimationDuration = 0.2f;
+        [SerializeField] public float _cardDrawDuration = 0.3f;
+        [SerializeField] public AnimationCurve _selectionCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        [SerializeField] public AnimationCurve _deployCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
         [Header("Visual States")]
-        [SerializeField] private Color _affordableColor = Color.white;
-        [SerializeField] private Color _unaffordableColor = new Color(1f, 0.3f, 0.3f);
+        [SerializeField] public Color _affordableColor = Color.white;
+        [SerializeField] public Color _unaffordableColor = new Color(1f, 0.3f, 0.3f);
         [SerializeField] private Color _selectedGlowColor = new Color(1f, 1f, 0.5f, 0.8f);
 
         private HandCardUI[] _handCards = new HandCardUI[4];

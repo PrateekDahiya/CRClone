@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
 using CRClone.Battle.Simulation;
+using CRClone.UI;
 using CRClone.UI.Animation;
 
 namespace CRClone.Battle.UI

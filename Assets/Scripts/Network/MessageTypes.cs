@@ -104,6 +104,7 @@ namespace CRClone.Network
         [ProtoMember(32)] public PlayerBattleInfo player1 { get; set; }
         [ProtoMember(33)] public PlayerBattleInfo player2 { get; set; }
         [ProtoMember(34)] public bool is2v2 { get; set; }
+        [ProtoMember(35)] public CRClone.Core.BattleType battleType { get; set; }
     }
 
     [ProtoContract]
@@ -393,6 +394,80 @@ namespace CRClone.Network
         public PlayerResponseMessage() { type = MessageTypes.PlayerResponse; }
         [ProtoMember(800)] public string action { get; set; }
         [ProtoMember(801)] public byte[] data { get; set; }
+    }
+
+    // Replay (consumed by ChatMessageUI, BattleResultScreen, ProfileScreen)
+    [ProtoContract]
+    public class ReplayRequest : NetworkMessage
+    {
+        public ReplayRequest() { type = "replay"; }
+        [ProtoMember(1)] public long replayId { get; set; }
+        [ProtoMember(2)] public string replayCode { get; set; }
+    }
+
+    // Battle rematch (consumed by BattleResultScreen)
+    [ProtoContract]
+    public class RematchRequest : NetworkMessage
+    {
+        public RematchRequest() { type = "matchmaking"; }
+        [ProtoMember(1)] public long battleId { get; set; }
+    }
+
+    // Player rename (consumed by ProfileScreen)
+    [ProtoContract]
+    public class ChangeNameRequest : NetworkMessage
+    {
+        public ChangeNameRequest() { type = "player"; }
+        [ProtoMember(1)] public string newName { get; set; }
+    }
+
+    // Shop (consumed by ShopScreen)
+    [ProtoContract]
+    public class ShopPurchaseRequest : NetworkMessage
+    {
+        public ShopPurchaseRequest() { type = "shop"; }
+        [ProtoMember(1)] public string offerId;
+        [ProtoMember(2)] public string currencyType;
+    }
+
+    // Clan (consumed by ClanScreen)
+    [ProtoContract]
+    public class ClanChatMessage : NetworkMessage
+    {
+        public ClanChatMessage() { type = "clan"; }
+        [ProtoMember(1)] public string content { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanDonationRequest : NetworkMessage
+    {
+        public ClanDonationRequest() { type = "clan"; }
+        [ProtoMember(1)] public int cardId { get; set; }
+        [ProtoMember(2)] public int count { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanDonate : NetworkMessage
+    {
+        public ClanDonate() { type = "clan"; }
+        [ProtoMember(1)] public int cardId { get; set; }
+        [ProtoMember(2)] public string recipientId { get; set; }
+        [ProtoMember(3)] public int count { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanWarAction : NetworkMessage
+    {
+        public ClanWarAction() { type = "clan"; }
+        [ProtoMember(1)] public string action { get; set; }
+    }
+
+    [ProtoContract]
+    public class ClanMemberAction : NetworkMessage
+    {
+        public ClanMemberAction() { type = "clan"; }
+        [ProtoMember(1)] public string targetPlayerId { get; set; }
+        [ProtoMember(2)] public string action { get; set; }
     }
 
     // Helper to identify message types

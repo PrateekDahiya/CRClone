@@ -160,7 +160,7 @@ namespace CRClone.Editor
             }
 
             // Check audio settings
-            if (importer is AudioImporter audioImporter)
+            if (importer is UnityEditor.AudioImporter audioImporter)
             {
                 ValidateAudio(audioImporter, path);
             }
@@ -285,8 +285,7 @@ namespace CRClone.Editor
             // Check compression
             if (_checkCompression)
             {
-                var settings = new TextureImporterPlatformSettings();
-                importer.GetPlatformTextureSettings(settings);
+                var settings = importer.GetPlatformTextureSettings("Standalone");
                 
                 var isMobile = path.Contains("/UI/") || path.Contains("/Units/");
                 var expectedFormat = isMobile ? TextureImporterFormat.ASTC_4x4 : TextureImporterFormat.DXT5;
@@ -328,10 +327,9 @@ namespace CRClone.Editor
             }
         }
 
-        private void ValidateAudio(AudioImporter importer, string path)
+        private void ValidateAudio(UnityEditor.AudioImporter importer, string path)
         {
-            var settings = new AudioImporterSampleSettings();
-            importer.GetOverrideSampleSettings("Standalone", out settings);
+            var settings = importer.GetOverrideSampleSettings("Standalone");
             
             if (path.Contains("/Music/") && settings.loadType != AudioClipLoadType.Streaming)
             {
@@ -355,7 +353,7 @@ namespace CRClone.Editor
                 });
             }
 
-            if (path.Contains("/SFX/") && !settings.forceToMono)
+            if (path.Contains("/SFX/") && !importer.forceToMono)
             {
                 _issues.Add(new ValidationIssue
                 {

@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using CRClone.Core;
 
 namespace CRClone.UI
@@ -55,6 +58,8 @@ namespace CRClone.UI
     {
         public static InputManager Instance { get; private set; }
 
+        public enum DeployMode { Tap, Drag, Both }
+
         [Header("Input Actions Asset")]
         [SerializeField] private InputActionAsset _inputActionsAsset;
 
@@ -85,6 +90,7 @@ namespace CRClone.UI
         [SerializeField] private float _gamepadRepeatDelay = 0.3f;
         [SerializeField] private float _gamepadRepeatRate = 0.1f;
         [SerializeField] private bool _tapAlternativeForDrag = true;
+        [SerializeField] private DeployMode _deployMode = DeployMode.Both;
 
         private Dictionary<InputActionType, InputAction> _actions = new Dictionary<InputActionType, InputAction>();
         private Dictionary<InputActionType, InputBinding> _currentBindings = new Dictionary<InputActionType, InputBinding>();
@@ -139,7 +145,7 @@ namespace CRClone.UI
         {
             foreach (var binding in _defaultBindings)
             {
-                var action = new InputAction(binding.action.ToString(), InputActionType.Button);
+                var action = new InputAction(binding.action.ToString(), UnityEngine.InputSystem.InputActionType.Button);
                 action.AddBinding($"<Keyboard>/{binding.keyboardKey}");
                 action.AddBinding($"<Gamepad>/{binding.gamepadButton}");
                 action.Enable();
@@ -349,7 +355,10 @@ namespace CRClone.UI
             if (_actions.TryGetValue(actionType, out var action))
             {
                 action.Disable();
-                action.RemoveAllBindings();
+                while (action.bindings.Count > 0)
+                {
+                    action.ChangeBinding(0).Erase();
+                }
                 action.AddBinding($"<Keyboard>/{binding.keyboardKey}");
                 action.AddBinding($"<Gamepad>/{binding.gamepadButton}");
                 action.Enable();
@@ -360,7 +369,7 @@ namespace CRClone.UI
         {
             foreach (var defaultBinding in _defaultBindings)
             {
-                string keyPrefix = $"input_{actionType}_{defaultBinding.action}";
+                string keyPrefix = $"input_{defaultBinding.action}";
 
                 Key savedKey = (Key)PlayerPrefs.GetInt($"{keyPrefix}_keyboard", (int)defaultBinding.keyboardKey);
                 GamepadButton savedButton = (GamepadButton)PlayerPrefs.GetInt($"{keyPrefix}_gamepad", (int)defaultBinding.gamepadButton);
@@ -399,6 +408,18 @@ namespace CRClone.UI
             _tapAlternativeForDrag = enabled;
             PlayerPrefs.SetInt("input_tap_alternative", enabled ? 1 : 0);
             PlayerPrefs.Save();
+        }
+
+        public void SetDeployMode(DeployMode mode)
+        {
+            _deployMode = mode;
+            PlayerPrefs.SetInt("deploy_mode", (int)mode);
+            PlayerPrefs.Save();
+        }
+
+        public DeployMode GetDeployMode()
+        {
+            return _deployMode;
         }
 
         public void EnableAllActions()
@@ -535,7 +556,7 @@ namespace CRClone.UI
         {
             if (!_enableTapAlternative) return;
 
-            float pressDuration = Time.unscaledTime - _pressPosition;
+            float pressDuration = Time.unscaledTime - _pressTime;
             float dragDistance = Vector2.Distance(eventData.position, _pressPosition);
 
             if (!_isDragging && pressDuration < _tapThreshold && dragDistance < _dragThreshold)

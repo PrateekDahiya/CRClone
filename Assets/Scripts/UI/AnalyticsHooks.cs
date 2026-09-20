@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using CRClone.Core;
+using CRClone.Data;
 
 namespace CRClone.UI
 {

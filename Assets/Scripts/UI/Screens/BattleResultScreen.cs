@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
+using CRClone.Network;
+using CRClone.Systems;
 using CRClone.UI.Animation;
 
 namespace CRClone.UI.Screens
@@ -62,17 +65,17 @@ namespace CRClone.UI.Screens
 
         private void SetupUI()
         {
-            _watchReplayButton?.onClick.AddListener(OnWatchReplay);
-            _shareButton?.onClick.AddListener(OnShare);
-            _rematchButton?.onClick.AddListener(OnRematch);
-            _backToLobbyButton?.onClick.AddListener(OnBackToLobby);
+            _watchReplayButton.OrNull()?.onClick.AddListener(OnWatchReplay);
+            _shareButton.OrNull()?.onClick.AddListener(OnShare);
+            _rematchButton.OrNull()?.onClick.AddListener(OnRematch);
+            _backToLobbyButton.OrNull()?.onClick.AddListener(OnBackToLobby);
 
             bool isPlayer1Victory = _battleEvent.result == BattleStatus.Player1Won;
             bool isDraw = _battleEvent.result == BattleStatus.Draw;
 
-            _victoryBanner?.SetActive(isPlayer1Victory && !isDraw);
-            _defeatBanner?.SetActive(!isPlayer1Victory && !isDraw);
-            _drawBanner?.SetActive(isDraw);
+            _victoryBanner.OrNull()?.SetActive(isPlayer1Victory && !isDraw);
+            _defeatBanner.OrNull()?.SetActive(!isPlayer1Victory && !isDraw);
+            _drawBanner.OrNull()?.SetActive(isDraw);
 
             string resultText = isDraw ? "DRAW" : (isPlayer1Victory ? "VICTORY" : "DEFEAT");
             if (_resultTitleText != null) _resultTitleText.text = resultText;
@@ -262,7 +265,7 @@ namespace CRClone.UI.Screens
         private void OnWatchReplay()
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            Services.Get<NetworkClient>().Send(new NetworkClient.ReplayRequest { replayId = _battleEvent.replayId });
+            Services.Get<NetworkClient>().Send(new ReplayRequest { replayId = _battleEvent.replayId });
         }
 
         private void OnShare()
@@ -276,7 +279,7 @@ namespace CRClone.UI.Screens
         private void OnRematch()
         {
             UISoundPlayer.Instance?.PlayButtonClick();
-            Services.Get<NetworkClient>().Send(new NetworkClient.RematchRequest { battleId = _battleEvent.battleId });
+            Services.Get<NetworkClient>().Send(new RematchRequest { battleId = _battleEvent.battleId });
         }
 
         private void OnBackToLobby()

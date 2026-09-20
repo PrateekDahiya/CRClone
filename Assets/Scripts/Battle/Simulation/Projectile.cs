@@ -13,15 +13,15 @@ namespace CRClone.Battle.Simulation
         public int Damage { get; private set; }
         public float Speed { get; private set; }
         public bool IsHoming { get; private set; }
-        public bool IsBeam { get; private set; }
+        public bool IsBeam { get; protected set; }
         public bool IsMortarShot { get; set; }
         public bool Is360Splash { get; set; } // Valkyrie, Dark Prince
         public float SplashRadius { get; set; }
-        public int PierceCount { get; private set; }
-        public int ChainCount { get; private set; }
-        public float ChainRange { get; private set; }
+        public int PierceCount { get; set; }
+        public int ChainCount { get; set; }
+        public float ChainRange { get; set; }
         public DamageType DamageType { get; private set; }
-        public bool IsDead { get; private set; }
+        public new bool IsDead { get; protected set; }
 
         private Vector2 _startPosition;
         private float _travelTime = 0f;

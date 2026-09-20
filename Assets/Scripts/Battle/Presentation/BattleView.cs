@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using CRClone.Core;
+using CRClone.Systems;
+using CRClone.UI;
 using CRClone.Battle.Simulation;
 
 namespace CRClone.Battle.Presentation
@@ -157,7 +159,7 @@ namespace CRClone.Battle.Presentation
         {
             if (_unitViews.TryGetValue(evt.entityId, out var view))
             {
-                view.PlayDeathAnimation(evt.cause);
+                view.PlayDeathAnimation((DeathCause)evt.cause);
                 _unitViews.Remove(evt.entityId);
                 // Return to pool after animation
                 StartCoroutine(ReturnToPoolAfter(view.gameObject, 1f));
@@ -325,7 +327,7 @@ namespace CRClone.Battle.Presentation
             foreach (var kvp in _towerViews)
             {
                 var tower = kvp.Value.Tower;
-                if (tower.OwnerPlayerId == evt.playerId && tower.Type == evt.towerType)
+                if (tower.OwnerPlayerId == evt.playerId && tower.Type == (TowerType)evt.towerType)
                 {
                     kvp.Value.PlayHitEffect();
                     TriggerCameraShake(0.1f);
@@ -339,7 +341,7 @@ namespace CRClone.Battle.Presentation
             foreach (var kvp in _towerViews)
             {
                 var tower = kvp.Value.Tower;
-                if (tower.OwnerPlayerId == evt.playerId && tower.Type == evt.towerType)
+                if (tower.OwnerPlayerId == evt.playerId && tower.Type == (TowerType)evt.towerType)
                 {
                     kvp.Value.PlayDestructionAnimation();
                     TriggerCameraShake(0.5f);

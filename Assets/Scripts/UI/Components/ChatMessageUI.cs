@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Network;
 using CRClone.UI.Screens;
 
@@ -36,7 +37,7 @@ namespace CRClone.UI.Components
             _onDonateClicked = onDonateClicked;
 
             var playerData = Services.Get<GameManager>().LocalPlayer;
-            bool isOwnMessage = playerData != null && message.senderId == playerData.playerId;
+            bool isOwnMessage = playerData != null && message.senderId == playerData.playerId.ToString();
 
             UpdateVisuals(isOwnMessage);
         }
@@ -65,9 +66,9 @@ namespace CRClone.UI.Components
             switch (_message.type)
             {
                 case ChatMessage.MessageType.DonationRequest:
-                    _messageText?.gameObject.SetActive(false);
-                    _donationRequestContainer?.SetActive(true);
-                    _replayLinkContainer?.SetActive(false);
+                    _messageText.OrNull()?.gameObject.SetActive(false);
+                    _donationRequestContainer.OrNull()?.SetActive(true);
+                    _replayLinkContainer.OrNull()?.SetActive(false);
 
                     if (_donationCardNameText != null && _message.donationCardId.HasValue)
                     {
@@ -94,9 +95,9 @@ namespace CRClone.UI.Components
                     break;
 
                 case ChatMessage.MessageType.ReplayShare:
-                    _messageText?.gameObject.SetActive(false);
-                    _donationRequestContainer?.SetActive(false);
-                    _replayLinkContainer?.SetActive(true);
+                    _messageText.OrNull()?.gameObject.SetActive(false);
+                    _donationRequestContainer.OrNull()?.SetActive(false);
+                    _replayLinkContainer.OrNull()?.SetActive(true);
 
                     if (_replayLinkText != null)
                     {
@@ -110,16 +111,16 @@ namespace CRClone.UI.Components
                         {
                             if (!string.IsNullOrEmpty(_message.replayLink))
                             {
-                                Services.Get<NetworkClient>().Send(new NetworkClient.ReplayRequest { replayCode = _message.replayLink });
+                                Services.Get<NetworkClient>().Send(new ReplayRequest { replayCode = _message.replayLink });
                             }
                         });
                     }
                     break;
 
                 default:
-                    _messageText?.gameObject.SetActive(true);
-                    _donationRequestContainer?.SetActive(false);
-                    _replayLinkContainer?.SetActive(false);
+                    _messageText.OrNull()?.gameObject.SetActive(true);
+                    _donationRequestContainer.OrNull()?.SetActive(false);
+                    _replayLinkContainer.OrNull()?.SetActive(false);
 
                     if (_messageText != null)
                     {

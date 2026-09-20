@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Data;
 using CRClone.Network;
+using CRClone.UI.Components;
 
 namespace CRClone.UI.Screens
 {
@@ -54,6 +56,7 @@ namespace CRClone.UI.Screens
         private ClanTab _currentTab = ClanTab.Chat;
         private List<ClanMember> _members = new List<ClanMember>();
         private List<ChatMessage> _messages = new List<ChatMessage>();
+        private bool _isInitialized;
 
         public enum ClanTab
         {
@@ -71,20 +74,29 @@ namespace CRClone.UI.Screens
 
         private void InitializeComponents()
         {
-            _backButton?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
+            if (_isInitialized) return;
 
-            _chatTab?.onClick.AddListener(() => SwitchTab(ClanTab.Chat));
-            _membersTab?.onClick.AddListener(() => SwitchTab(ClanTab.Members));
-            _warTab?.onClick.AddListener(() => SwitchTab(ClanTab.War));
-            _capitalTab?.onClick.AddListener(() => SwitchTab(ClanTab.Capital));
-            _settingsTab?.onClick.AddListener(() => SwitchTab(ClanTab.Settings));
+            _backButton.OrNull()?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.MainMenu));
 
-            _sendButton?.onClick.AddListener(OnSendMessage);
-            _donateRequestButton?.onClick.AddListener(OnDonateRequest);
-            _warParticipateButton?.onClick.AddListener(OnWarParticipate);
-            _leaveClanButton?.onClick.AddListener(OnLeaveClan);
+            _chatTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Chat));
+            _membersTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Members));
+            _warTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.War));
+            _capitalTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Capital));
+            _settingsTab.OrNull()?.onClick.AddListener(() => SwitchTab(ClanTab.Settings));
+
+            _sendButton.OrNull()?.onClick.AddListener(OnSendMessage);
+            _donateRequestButton.OrNull()?.onClick.AddListener(OnDonateRequest);
+            _warParticipateButton.OrNull()?.onClick.AddListener(OnWarParticipate);
+            _leaveClanButton.OrNull()?.onClick.AddListener(OnLeaveClan);
 
             LoadClanData();
+
+            _isInitialized = true;
+        }
+
+        public void Initialize()
+        {
+            InitializeComponents();
         }
 
         private void OnEnable()
@@ -120,11 +132,11 @@ namespace CRClone.UI.Screens
 
         private void ShowTabContent(ClanTab tab)
         {
-            _chatContent?.gameObject.SetActive(tab == ClanTab.Chat);
-            _membersContent?.gameObject.SetActive(tab == ClanTab.Members);
-            _warContent?.gameObject.SetActive(tab == ClanTab.War);
-            _capitalContent?.gameObject.SetActive(tab == ClanTab.Capital);
-            _settingsContent?.gameObject.SetActive(tab == ClanTab.Settings);
+            _chatContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Chat);
+            _membersContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Members);
+            _warContent.OrNull()?.gameObject.SetActive(tab == ClanTab.War);
+            _capitalContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Capital);
+            _settingsContent.OrNull()?.gameObject.SetActive(tab == ClanTab.Settings);
         }
 
         private void RefreshCurrentTab()
@@ -236,7 +248,7 @@ namespace CRClone.UI.Screens
 
         private void ScrollToBottom()
         {
-            var scrollRect = _chatMessagesContainer?.GetComponentInParent<ScrollRect>();
+            var scrollRect = _chatMessagesContainer.OrNull()?.GetComponentInParent<ScrollRect>();
             if (scrollRect != null)
             {
                 Canvas.ForceUpdateCanvases();
@@ -246,14 +258,14 @@ namespace CRClone.UI.Screens
 
         private void OnSendMessage()
         {
-            if (string.IsNullOrWhiteSpace(_chatInput?.text)) return;
+            if (string.IsNullOrWhiteSpace(_chatInput.OrNull()?.text)) return;
 
             string message = _chatInput.text;
             _chatInput.text = "";
 
             var chatMessage = new ChatMessage
             {
-                senderId = Services.Get<GameManager>().LocalPlayer?.playerId ?? "",
+                senderId = Services.Get<GameManager>().LocalPlayer?.playerId.ToString() ?? "",
                 senderName = Services.Get<GameManager>().LocalPlayer?.playerName ?? "You",
                 message = message,
                 timestamp = DateTime.Now,
@@ -271,13 +283,13 @@ namespace CRClone.UI.Screens
 
             ScrollToBottom();
 
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanChatMessage { message = message });
+            Services.Get<NetworkClient>().Send(new ClanChatMessage { content = message });
         }
 
         private void OnDonateRequest()
         {
-            var modal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DonateRequestModal"));
-            var modalUI = modal?.GetComponent<DonateRequestModal>();
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/DonateRequestModal"));
+            var modalUI = UIManager.Instance?.GetComponentInChildren<DonateRequestModal>();
             if (modalUI != null)
             {
                 modalUI.Initialize(OnDonateRequestConfirmed);
@@ -286,7 +298,7 @@ namespace CRClone.UI.Screens
 
         private void OnDonateRequestConfirmed(int cardId, int count)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonationRequest { cardId = cardId, count = count });
+            Services.Get<NetworkClient>().Send(new ClanDonationRequest { cardId = cardId, count = count });
         }
 
         private void OnDonateClicked(int cardId, string requesterId)
@@ -295,9 +307,9 @@ namespace CRClone.UI.Screens
             if (playerData?.collection.ContainsKey(cardId) == true)
             {
                 int maxDonate = GetMaxDonation(cardId);
-                if (playerData.collection[cardId] >= maxDonate)
+                if (playerData.collection[cardId].count >= maxDonate)
                 {
-                    Services.Get<NetworkClient>().Send(new NetworkClient.ClanDonate { cardId = cardId, recipientId = requesterId, count = maxDonate });
+                    Services.Get<NetworkClient>().Send(new ClanDonate { cardId = cardId, recipientId = requesterId, count = maxDonate });
                     EventBus.RaiseToast("Donated!");
                 }
                 else
@@ -325,17 +337,17 @@ namespace CRClone.UI.Screens
 
         private void OnWarParticipate()
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanWarAction { action = "participate" });
+            Services.Get<NetworkClient>().Send(new ClanWarAction { action = "participate" });
         }
 
         private void OnLeaveClan()
         {
-            var confirmModal = UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/LeaveClanConfirmModal"));
+            UIManager.Instance?.ShowModal(Resources.Load<GameObject>("UI/LeaveClanConfirmModal"));
         }
 
         private void OnMemberAction(ClanMember member, MemberAction action)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.ClanMemberAction 
+            Services.Get<NetworkClient>().Send(new ClanMemberAction 
             { 
                 targetPlayerId = member.playerId, 
                 action = action.ToString().ToLower() 

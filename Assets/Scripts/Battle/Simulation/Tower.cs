@@ -8,7 +8,7 @@ namespace CRClone.Battle.Simulation
 {
     public class Tower : Entity
     {
-        public TowerType Type { get; private set; }
+        public new TowerType Type { get; private set; }
         public bool IsActivated { get; private set; } // King Tower only
         public float AttackCooldown { get; private set; }
         public int Damage { get; private set; }
@@ -101,7 +101,7 @@ namespace CRClone.Battle.Simulation
 
             if (CurrentHP < MaxHP)
             {
-                ActivateKingTower(KingTowerActivationCause.Damaged);
+                ActivateKingTower(KingTowerActivationCause.Damaged, sim);
                 return;
             }
 
@@ -112,13 +112,13 @@ namespace CRClone.Battle.Simulation
                     (tower.Type == TowerType.PrincessLeft || tower.Type == TowerType.PrincessRight) && 
                     tower.IsDead)
                 {
-                    ActivateKingTower(KingTowerActivationCause.PrincessTowerDestroyed);
+                    ActivateKingTower(KingTowerActivationCause.PrincessTowerDestroyed, sim);
                     return;
                 }
             }
         }
 
-        public void ActivateKingTower(KingTowerActivationCause cause)
+        public void ActivateKingTower(KingTowerActivationCause cause, BattleSimulation sim)
         {
             if (IsActivated) return;
 

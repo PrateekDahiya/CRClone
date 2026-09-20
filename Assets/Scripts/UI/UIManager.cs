@@ -4,7 +4,9 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using CRClone.Core;
+using CRClone.Network;
 using CRClone.UI.Animation;
+using CRClone.UI.Screens;
 
 namespace CRClone.UI
 {
@@ -37,8 +39,8 @@ namespace CRClone.UI
 
         private GameObject _currentScreen;
         private ScreenType _currentScreenType = ScreenType.MainMenu;
-        private ScreenTransition _screenTransition;
         private bool _isTransitioning;
+        private Transform _screenRoot;
 
         public static UIManager Instance { get; private set; }
 
@@ -59,10 +61,59 @@ namespace CRClone.UI
             InitializeSystems();
         }
 
+        /// <summary>
+        /// Screens are RectTransform-based, so they only render when parented under a
+        /// Canvas. UIManager is created programmatically by GameManager (a bare
+        /// GameObject), so when no Canvas has been supplied we build one here rather
+        /// than instantiating screens into a non-rendering transform.
+        /// </summary>
+        private Transform EnsureScreenRoot()
+        {
+            if (_screenRoot != null) return _screenRoot;
+
+            var existing = GetComponentInChildren<Canvas>(true);
+            if (existing != null)
+            {
+                _screenRoot = existing.transform;
+                return _screenRoot;
+            }
+
+            var canvasGO = new GameObject("UICanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasGO.transform.SetParent(transform, false);
+            canvasGO.layer = LayerMask.NameToLayer("UI");
+
+            var canvas = canvasGO.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 0;
+
+            var scaler = canvasGO.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+
+            // Buttons need an EventSystem to receive input; scenes may not carry one.
+            if (UnityEngine.EventSystems.EventSystem.current == null)
+            {
+                var es = new GameObject("EventSystem",
+                    typeof(UnityEngine.EventSystems.EventSystem),
+                    typeof(UnityEngine.EventSystems.StandaloneInputModule));
+                DontDestroyOnLoad(es);
+            }
+
+            _screenRoot = canvasGO.transform;
+            return _screenRoot;
+        }
+
         private void InitializeSystems()
         {
-            _screenTransition = GetComponent<ScreenTransition>();
-            if (_screenTransition == null) _screenTransition = gameObject.AddComponent<ScreenTransition>();
+            EnsureScreenRoot();
+
+            // NOTE: no ScreenTransition is added here. It requires a RectTransform and
+            // UIManager is a plain manager object, so adding one threw a
+            // MissingComponentException that aborted the rest of this method (including
+            // the EventBus subscriptions below) and left the game on a blank screen.
+            // Transitions are per-screen and created in ShowScreenRoutine/ShowModalRoutine.
 
             if (_responsiveLayout == null) _responsiveLayout = FindObjectOfType<ResponsiveLayout>();
             if (_accessibilityManager == null) _accessibilityManager = FindObjectOfType<AccessibilityManager>();
@@ -78,10 +129,31 @@ namespace CRClone.UI
 
         private void OnGameStateChanged(GameState newState)
         {
-            ScreenType screenType = GameStateToScreenType(newState);
-            if (screenType != ScreenType.MainMenu)
+            // States with no screen of their own (Boot, Matchmaking, BattleLoading...)
+            // map to MainMenu by default; showing that on every such state would yank
+            // the player back to the menu. Only drive the UI for states that really
+            // are a screen -- including MainMenu itself, which was previously excluded
+            // and so never appeared at all.
+            if (!HasScreen(newState)) return;
+
+            ShowScreen(GameStateToScreenType(newState));
+        }
+
+        private static bool HasScreen(GameState state)
+        {
+            switch (state)
             {
-                ShowScreen(screenType);
+                case GameState.MainMenu:
+                case GameState.Lobby:
+                case GameState.DeckBuilder:
+                case GameState.Shop:
+                case GameState.Clan:
+                case GameState.Profile:
+                case GameState.Settings:
+                case GameState.BattleResult:
+                    return true;
+                default:
+                    return false;
             }
         }
 
@@ -117,14 +189,15 @@ namespace CRClone.UI
                 var oldTransition = _currentScreen.GetComponent<ScreenTransition>();
                 if (oldTransition == null) oldTransition = _currentScreen.AddComponent<ScreenTransition>();
 
-                yield return oldTransition.TransitionOut(_screenTransitionType);
+                oldTransition.TransitionOut(_screenTransitionType);
+                yield return null;
                 _currentScreen.SetActive(false);
             }
 
             GameObject screenPrefab = GetScreenPrefab(screenType);
             if (screenPrefab != null)
             {
-                _currentScreen = Instantiate(screenPrefab, transform);
+                _currentScreen = Instantiate(screenPrefab, EnsureScreenRoot());
                 _currentScreenType = screenType;
 
                 var newTransition = _currentScreen.GetComponent<ScreenTransition>();
@@ -133,7 +206,8 @@ namespace CRClone.UI
                 newTransition.ResetTransform();
                 _currentScreen.SetActive(true);
 
-                yield return newTransition.TransitionIn(_screenTransitionType);
+                newTransition.TransitionIn(_screenTransitionType);
+                yield return null;
 
                 InitializeScreen(screenType, _currentScreen);
             }
@@ -150,14 +224,15 @@ namespace CRClone.UI
 
         private IEnumerator ShowModalRoutine(GameObject modalPrefab, Action onClosed)
         {
-            GameObject modal = Instantiate(modalPrefab, transform);
+            GameObject modal = Instantiate(modalPrefab, EnsureScreenRoot());
             modal.SetActive(true);
 
             var transition = modal.GetComponent<ScreenTransition>();
             if (transition == null) transition = modal.AddComponent<ScreenTransition>();
 
             transition.ResetTransform();
-            yield return transition.TransitionIn(_modalTransitionType);
+            transition.TransitionIn(_modalTransitionType);
+            yield return null;
 
             var modalController = modal.GetComponent<ModalController>();
             if (modalController != null)
@@ -165,12 +240,21 @@ namespace CRClone.UI
                 yield return new WaitUntil(() => modalController.IsClosed);
             }
 
-            yield return transition.TransitionOut(_modalTransitionType);
+            transition.TransitionOut(_modalTransitionType);
+            yield return null;
             Destroy(modal);
             onClosed?.Invoke();
         }
 
         private GameObject GetScreenPrefab(ScreenType type)
+        {
+            // Inspector wiring wins; otherwise fall back to Resources so a
+            // programmatically created UIManager can still resolve its screens.
+            return GetSerializedScreenPrefab(type)
+                   ?? Resources.Load<GameObject>($"UI/Screens/{type}");
+        }
+
+        private GameObject GetSerializedScreenPrefab(ScreenType type)
         {
             return type switch
             {
@@ -248,19 +332,19 @@ namespace CRClone.UI
         private void InitializeLobby(GameObject screen)
         {
             var battle1v1 = screen.transform.Find("Battle1v1")?.GetComponent<Button>();
-            battle1v1?.onClick.AddListener(() => StartMatchmaking(BattleType.Ladder));
+            battle1v1?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Ladder));
 
             var battle2v2 = screen.transform.Find("Battle2v2")?.GetComponent<Button>();
-            battle2v2?.onClick.AddListener(() => StartMatchmaking(BattleType.TwoVTwo));
+            battle2v2?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.TwoVTwo));
 
             var tournament = screen.transform.Find("Tournament")?.GetComponent<Button>();
-            tournament?.onClick.AddListener(() => StartMatchmaking(BattleType.Tournament));
+            tournament?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Tournament));
 
             var friendly = screen.transform.Find("Friendly")?.GetComponent<Button>();
-            friendly?.onClick.AddListener(() => StartMatchmaking(BattleType.Friendly));
+            friendly?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Friendly));
 
             var practice = screen.transform.Find("Practice")?.GetComponent<Button>();
-            practice?.onClick.AddListener(() => StartMatchmaking(BattleType.Practice));
+            practice?.onClick.AddListener(() => StartMatchmaking(CRClone.Network.BattleType.Practice));
 
             var deckBuilderBtn = screen.transform.Find("DeckBuilderButton")?.GetComponent<Button>();
             deckBuilderBtn?.onClick.AddListener(() => Services.Get<GameManager>().ChangeState(GameState.DeckBuilder));
@@ -269,9 +353,9 @@ namespace CRClone.UI
             lobbyScreen?.Initialize();
         }
 
-        private void StartMatchmaking(BattleType type)
+        private void StartMatchmaking(CRClone.Network.BattleType type)
         {
-            Services.Get<NetworkClient>().Send(new NetworkClient.MatchmakingRequest { battleType = type });
+            Services.Get<NetworkClient>().Send(new MatchmakingRequest { battleType = type });
             Services.Get<GameManager>().ChangeState(GameState.Matchmaking);
         }
 
@@ -312,15 +396,15 @@ namespace CRClone.UI
 
         private void HideAllScreens()
         {
-            _mainMenuScreen?.SetActive(false);
-            _lobbyScreen?.SetActive(false);
-            _deckBuilderScreen?.SetActive(false);
-            _shopScreen?.SetActive(false);
-            _clanScreen?.SetActive(false);
-            _profileScreen?.SetActive(false);
-            _settingsScreen?.SetActive(false);
-            _battleResultScreen?.SetActive(false);
-            _chestUnlockScreen?.SetActive(false);
+            _mainMenuScreen.OrNull()?.SetActive(false);
+            _lobbyScreen.OrNull()?.SetActive(false);
+            _deckBuilderScreen.OrNull()?.SetActive(false);
+            _shopScreen.OrNull()?.SetActive(false);
+            _clanScreen.OrNull()?.SetActive(false);
+            _profileScreen.OrNull()?.SetActive(false);
+            _settingsScreen.OrNull()?.SetActive(false);
+            _battleResultScreen.OrNull()?.SetActive(false);
+            _chestUnlockScreen.OrNull()?.SetActive(false);
         }
 
         public void ShowBattleResult(EventBus.BattleEndedEvent evt)
@@ -363,8 +447,14 @@ namespace CRClone.UI
 
         public void UpdateLoadingProgress(float progress)
         {
-            var loadingUI = _loadingOverlay?.GetComponentInChildren<LoadingUI>();
-            loadingUI?.SetProgress(progress);
+            // Must be an explicit == null test, not ?. -- the null-conditional operator
+            // bypasses Unity's overloaded equality, so an unassigned serialized
+            // reference reads as non-null here and threw UnassignedReferenceException
+            // on every loading-progress event.
+            if (_loadingOverlay == null) return;
+
+            var loadingUI = _loadingOverlay.GetComponentInChildren<LoadingUI>();
+            if (loadingUI != null) loadingUI.SetProgress(progress);
         }
 
         public void ShowChestUnlock(int chestTypeId, System.Collections.Generic.List<EventBus.ChestReward> rewards)
